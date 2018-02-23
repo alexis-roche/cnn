@@ -13,14 +13,14 @@ cdef extern from "run_utils.h":
     ctypedef struct array1d:
         size_t dim
         size_t off
-        double* data
+        float* data
 
     ctypedef struct array2d:
         size_t dimx
         size_t dimy
         size_t offx
         size_t offy
-        double* data
+        float* data
 
     ctypedef struct array3d:
         size_t dimx
@@ -29,7 +29,7 @@ cdef extern from "run_utils.h":
         size_t offx
         size_t offy
         size_t offz
-        double* data
+        float* data
 
     ctypedef struct array4d:
         size_t dimx
@@ -40,9 +40,9 @@ cdef extern from "run_utils.h":
         size_t offy
         size_t offz
         size_t offt
-        double* data
+        float* data
 
-    void convolve_image(array3d* src, array3d* kernel, double bias,
+    void convolve_image(array3d* src, array3d* kernel, float bias,
                         unsigned int dil_x, unsigned int dil_y,
                         array2d* res)
     void multi_convolve_image(array3d* src, array4d* kernels, array1d* biases,
@@ -63,26 +63,26 @@ np.import_array()
 
 cdef to_array1d(np.ndarray A, array1d* a_ptr):
     a_ptr[0].dim = A.shape[0]
-    a_ptr[0].off = A.strides[0] / sizeof(double)
-    a_ptr[0].data = <double*>A.data
+    a_ptr[0].off = A.strides[0] / sizeof(float)
+    a_ptr[0].data = <float*>A.data
 
     
 cdef to_array2d(np.ndarray A, array2d* a_ptr):
     a_ptr[0].dimx = A.shape[0]
     a_ptr[0].dimy = A.shape[1]
-    a_ptr[0].offx = A.strides[0] / sizeof(double)
-    a_ptr[0].offy = A.strides[1] / sizeof(double)
-    a_ptr[0].data = <double*>A.data
+    a_ptr[0].offx = A.strides[0] / sizeof(float)
+    a_ptr[0].offy = A.strides[1] / sizeof(float)
+    a_ptr[0].data = <float*>A.data
 
     
 cdef to_array3d(np.ndarray A, array3d* a_ptr):
     a_ptr[0].dimx = A.shape[0]
     a_ptr[0].dimy = A.shape[1]
     a_ptr[0].dimz = A.shape[2]
-    a_ptr[0].offx = A.strides[0] / sizeof(double)
-    a_ptr[0].offy = A.strides[1] / sizeof(double)
-    a_ptr[0].offz = A.strides[2] / sizeof(double)
-    a_ptr[0].data = <double*>A.data
+    a_ptr[0].offx = A.strides[0] / sizeof(float)
+    a_ptr[0].offy = A.strides[1] / sizeof(float)
+    a_ptr[0].offz = A.strides[2] / sizeof(float)
+    a_ptr[0].data = <float*>A.data
 
     
 cdef to_array4d(np.ndarray A, array4d* a_ptr):
@@ -90,17 +90,17 @@ cdef to_array4d(np.ndarray A, array4d* a_ptr):
     a_ptr[0].dimy = A.shape[1]
     a_ptr[0].dimz = A.shape[2]
     a_ptr[0].dimt = A.shape[3]
-    a_ptr[0].offx = A.strides[0] / sizeof(double)
-    a_ptr[0].offy = A.strides[1] / sizeof(double)
-    a_ptr[0].offz = A.strides[2] / sizeof(double)
-    a_ptr[0].offt = A.strides[3] / sizeof(double)
-    a_ptr[0].data = <double*>A.data
+    a_ptr[0].offx = A.strides[0] / sizeof(float)
+    a_ptr[0].offy = A.strides[1] / sizeof(float)
+    a_ptr[0].offz = A.strides[2] / sizeof(float)
+    a_ptr[0].offt = A.strides[3] / sizeof(float)
+    a_ptr[0].data = <float*>A.data
 
 
     
-def _convolve_image(np.ndarray[double, ndim=3] Src not None,
-                    np.ndarray[double, ndim=3] Kernel not None,
-                    double bias,
+def _convolve_image(np.ndarray[float, ndim=3] Src not None,
+                    np.ndarray[float, ndim=3] Kernel not None,
+                    float bias,
                     unsigned int fx,
                     unsigned int fy):
     cdef array3d src
@@ -109,7 +109,7 @@ def _convolve_image(np.ndarray[double, ndim=3] Src not None,
     #
     # check dimensions!!!
     #
-    Res = np.zeros([Src.shape[0], Src.shape[1]], dtype=np.double)
+    Res = np.zeros([Src.shape[0], Src.shape[1]], dtype=np.float32)
     to_array3d(Src, &src)
     to_array3d(Kernel, &kernel)
     to_array2d(Res, &res)
@@ -117,9 +117,9 @@ def _convolve_image(np.ndarray[double, ndim=3] Src not None,
     return Res
 
 
-def _multi_convolve_image(np.ndarray[double, ndim=3] Src not None,
-                          np.ndarray[double, ndim=4] Kernels not None,
-                          np.ndarray[double, ndim=1] Biases not None,
+def _multi_convolve_image(np.ndarray[float, ndim=3] Src not None,
+                          np.ndarray[float, ndim=4] Kernels not None,
+                          np.ndarray[float, ndim=1] Biases not None,
                           unsigned int fx,
                           unsigned int fy):
     cdef array3d src
@@ -129,7 +129,7 @@ def _multi_convolve_image(np.ndarray[double, ndim=3] Src not None,
     #
     # check dimensions!!!
     #
-    Res = np.zeros([Src.shape[0], Src.shape[1], Kernels.shape[3]], dtype=np.double)
+    Res = np.zeros([Src.shape[0], Src.shape[1], Kernels.shape[3]], dtype=np.float32)
     to_array3d(Src, &src)
     to_array4d(Kernels, &kernels)
     to_array1d(Biases, &biases)
@@ -138,7 +138,7 @@ def _multi_convolve_image(np.ndarray[double, ndim=3] Src not None,
     return Res
 
 
-def _relu_max_pool_image(np.ndarray[double, ndim=3] Src not None,
+def _relu_max_pool_image(np.ndarray[float, ndim=3] Src not None,
                          unsigned int sx,
                          unsigned int sy,
                          unsigned int fx,
@@ -146,7 +146,7 @@ def _relu_max_pool_image(np.ndarray[double, ndim=3] Src not None,
 
     cdef array3d src
     cdef array3d res
-    Res = np.zeros([Src.shape[0], Src.shape[1], Src.shape[2]], dtype=np.double)
+    Res = np.zeros([Src.shape[0], Src.shape[1], Src.shape[2]], dtype=np.float32)
     to_array3d(Src, &src)
     to_array3d(Res, &res)
     relu_max_pool_image(&src, sx, sy, fx, fy, &res)

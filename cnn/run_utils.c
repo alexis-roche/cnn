@@ -12,7 +12,7 @@ static inline unsigned int half_dimension(unsigned int dim)
 }
 
 
-static inline unsigned int unsigned_ceil(double a)
+static inline unsigned int unsigned_ceil(float a)
 {
   unsigned int n = (unsigned int) a;
   if (n == a)
@@ -39,7 +39,7 @@ static inline void adjust_kernel(unsigned int c,
   beta = alpha + src_dim;
     
   if (alpha > 0) {
-    *c0 = unsigned_ceil(alpha / (double)dil);
+    *c0 = unsigned_ceil(alpha / (float)dil);
     if (pos_kernel != NULL)
       *pos_kernel = (*c0) * kernel_offset;
   }
@@ -47,23 +47,23 @@ static inline void adjust_kernel(unsigned int c,
   *pos_src = (dil * (*c0) - alpha) * src_offset;
 
   if ( (dil * kernel_dim) > beta)
-    *c1 = unsigned_ceil(beta / (double)dil);
+    *c1 = unsigned_ceil(beta / (float)dil);
 }
 
 
 
-static double _convolve_image(unsigned int xc,
+static float _convolve_image(unsigned int xc,
 			      unsigned int yc,
 			      array3d* src,
 			      array3d* kernel,
 			      unsigned int dil_x,
 			      unsigned int dil_y)
 {
-  double out = 0;
+  float out = 0;
   unsigned int x, y, z;
   unsigned int x0 = 0, y0 = 0, x1 = kernel->dimx, y1 = kernel->dimy;
   size_t pos_x_kernel = 0, pos_y_kernel = 0, pos_xy_kernel, pos_x_src, pos_y_src, pos_xy_src;
-  double *buf_kernel, *buf_src;
+  float *buf_kernel, *buf_src;
   size_t inc_src_x = dil_x * src->offx;
   size_t inc_src_y = dil_y * src->offy;
   
@@ -115,14 +115,14 @@ static double _convolve_image(unsigned int xc,
  */
 void convolve_image(array3d* src,
 		    array3d* kernel,
-		    double bias,
+		    float bias,
 		    unsigned int dil_x,
 		    unsigned int dil_y,
 		    array2d* res)
 {
   unsigned int x, y;
   size_t pos_x;
-  double *buf_res;
+  float *buf_res;
   
   pos_x = 0;
   for (x=0; x<res->dimx; x++) {
@@ -147,7 +147,7 @@ void multi_convolve_image(array3d* src,
   array3d kernel;
   array2d res2d;
   unsigned int t;
-  double *bias;
+  float *bias;
   
   kernel.dimx = kernels->dimx;
   kernel.dimy = kernels->dimy;
@@ -176,7 +176,7 @@ void multi_convolve_image(array3d* src,
 
 
 
-static double _relu_max_pool_image(unsigned int xc,
+static float _relu_max_pool_image(unsigned int xc,
 				   unsigned int yc,
 				   size_t pos_zc,
 				   array3d* src,
@@ -185,11 +185,11 @@ static double _relu_max_pool_image(unsigned int xc,
 				   unsigned int dil_x,
 				   unsigned int dil_y)
 {
-  double out = 0, tmp;
+  float out = 0, tmp;
   unsigned int x, y, z;
   unsigned int x0 = 0, y0 = 0, x1 = size_x, y1 = size_y;
   size_t pos_x = 0, pos_y = 0, pos_xy;
-  double *buf;
+  float *buf;
   size_t inc_x = dil_x * src->offx;
   size_t inc_y = dil_y * src->offy;
   
@@ -234,7 +234,7 @@ void relu_max_pool_image(array3d* src,
 {
   unsigned int x, y, z;
   size_t pos_res_z, pos_res_xz, pos_src_z;
-  double *buf_res;
+  float *buf_res;
   
   pos_res_z = 0;
   pos_src_z = 0;

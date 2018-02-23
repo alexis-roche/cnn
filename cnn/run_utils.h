@@ -10,7 +10,7 @@ extern "C" {
   typedef struct {
     size_t dim;
     size_t off;
-    double* data;
+    float* data;
   } array1d;
 
   typedef struct {
@@ -18,7 +18,7 @@ extern "C" {
     size_t dimy;
     size_t offx;
     size_t offy;
-    double* data;
+    float* data;
   } array2d;
 
   typedef struct {
@@ -28,7 +28,7 @@ extern "C" {
     size_t offx;
     size_t offy;
     size_t offz;
-    double* data;
+    float* data;
   } array3d;
 
   typedef struct {
@@ -40,12 +40,12 @@ extern "C" {
     size_t offy;
     size_t offz;
     size_t offt;
-    double* data;
+    float* data;
   } array4d;
 
   extern void convolve_image(array3d* src,
 			     array3d* kernel,
-			     double bias,
+			     float bias,
 			     unsigned int dil_x,
 			     unsigned int dil_y,
 			     array2d* res);
