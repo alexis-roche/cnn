@@ -4,13 +4,15 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
- 
+
 #include <stdio.h>
 
+  typedef float FLOAT;
+  
   typedef struct {
     size_t dim;
     size_t off;
-    float* data;
+    FLOAT* data;
   } array1d;
 
   typedef struct {
@@ -18,7 +20,7 @@ extern "C" {
     size_t dimy;
     size_t offx;
     size_t offy;
-    float* data;
+    FLOAT* data;
   } array2d;
 
   typedef struct {
@@ -28,7 +30,7 @@ extern "C" {
     size_t offx;
     size_t offy;
     size_t offz;
-    float* data;
+    FLOAT* data;
   } array3d;
 
   typedef struct {
@@ -40,12 +42,12 @@ extern "C" {
     size_t offy;
     size_t offz;
     size_t offt;
-    float* data;
+    FLOAT* data;
   } array4d;
 
   extern void convolve_image(array3d* src,
 			     array3d* kernel,
-			     float bias,
+			     FLOAT bias,
 			     unsigned int dil_x,
 			     unsigned int dil_y,
 			     array2d* res);
