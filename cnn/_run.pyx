@@ -6,7 +6,6 @@ __version__ = '0.1'
 import numpy as np
 cimport numpy as np
 
-
 # Externals
 cdef extern from "run_utils.h":
 

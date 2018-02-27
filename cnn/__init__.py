@@ -1,4 +1,4 @@
-from .image_classifier import ImageClassifier
+from .image_classifier import ImageClassifier, load_image_classifier
 
 """
 from nipy.testing import Tester
