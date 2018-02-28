@@ -126,7 +126,9 @@ class ImageClassifier(object):
     def run(self, x):
         if self._model is None:
             raise ValueError('Model needs be trained first')
-        return self._model.predict(x)
+        if x.ndim == 3:
+            x = np.expand_dims(x, 0)
+        return self._model.predict(x).squeeze()
 
     def evaluate(self):
         if self._model is None:

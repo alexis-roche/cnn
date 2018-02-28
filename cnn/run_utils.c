@@ -48,6 +48,7 @@ static inline void adjust_kernel(unsigned int c,
 
   if ( (dil * kernel_dim) > beta)
     *c1 = unsigned_ceil(beta / (FLOAT)dil);
+ 
 }
 
 
@@ -198,11 +199,11 @@ static FLOAT _relu_max_pool_image(unsigned int xc,
   adjust_kernel(xc, dil_x, size_x,  0,
 		src->dimx, src->offx, 
 		&x0, &x1, NULL, &pos_x);
-  
+
   adjust_kernel(yc, dil_y, size_y, 0, 
 		src->dimy, src->offy, 
 		&y0, &y1, NULL, &pos_y);
-
+  
   /* 2D loop over source slice to find max value (if positive), and
      subsitute output if applicable */
   pos_x += pos_zc;
@@ -214,7 +215,7 @@ static FLOAT _relu_max_pool_image(unsigned int xc,
       if (tmp > out)
 	out = tmp;
       pos_xy += inc_y;
-      buf += src->offy;
+      buf += inc_y;
     }
     pos_x += inc_x;
   }
