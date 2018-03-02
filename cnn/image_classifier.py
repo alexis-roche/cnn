@@ -8,6 +8,16 @@ import keras
 
 from ._run import FLOAT_DTYPE
 
+
+def dim_after_convolution(dim, kernel_size):
+    return np.array(dim).astype(np.uint16) - kernel_size + 1
+
+
+def dim_after_pooling(dim, pool_size):
+    return np.ceil(dim_after_convolution(dim, pool_size) / float(pool_size)).astype(np.uint16)
+    
+
+
 def configure_cnn(nclasses,
                   image_size,
                   conv_filters,
@@ -195,16 +205,29 @@ class ImageClassifier(object):
         return self._pool_size
 
     def _get_layers(self):
-        return len(self._conv_filters) + len(self._dense_units) + 1
+        return tuple(['c' for i in range(len(self._conv_filters))] + ['d' for i in range(len(self._dense_units) + 1)])
+        
+    def _get_fcnn_shift(self, step=None):
+        if step is None:
+            step = len(self._conv_filters)
+        s = (self._kernel_size - 1) / 2 + (self._pool_size - 1) / 2
+        if self._pool_size > 1:
+            s *= (self._pool_size ** (step + 1) - 1) / (self._pool_size - 1)
+        else:
+            s *= len(self._conv_filters)
+        return np.array(self._image_size) / 2 - s
 
+    
     image_size = property(_get_image_size)
     nclasses = property(_get_nclasses)
     conv_filters = property(_get_conv_filters)
     kernel_size = property(_get_kernel_size)
     dense_units = property(_get_dense_units)
     pool_size = property(_get_pool_size)
+    fcnn_shift = property(_get_fcnn_shift)
     layers = property(_get_layers)
 
+    
 def load_image_classifier(h5file):
     model = keras.models.load_model(h5file)
     conv_filters = [layer.filters for layer in model.layers if type(layer) == keras.layers.convolutional.Conv2D]
