@@ -54,11 +54,11 @@ static inline void adjust_kernel(unsigned int c,
 
 
 static FLOAT _convolve_image(unsigned int xc,
-			      unsigned int yc,
-			      array3d* src,
-			      array3d* kernel,
-			      unsigned int dil_x,
-			      unsigned int dil_y)
+			     unsigned int yc,
+			     array3d* src,
+			     array3d* kernel,
+			     unsigned int dil_x,
+			     unsigned int dil_y)
 {
   FLOAT out = 0;
   unsigned int x, y, z;
@@ -178,13 +178,13 @@ void multi_convolve_image(array3d* src,
 
 
 static FLOAT _relu_max_pool_image(unsigned int xc,
-				   unsigned int yc,
-				   size_t pos_zc,
-				   array3d* src,
-				   unsigned int size_x,
-				   unsigned int size_y,
-				   unsigned int dil_x,
-				   unsigned int dil_y)
+				  unsigned int yc,
+				  size_t pos_zc,
+				  array3d* src,
+				  unsigned int size_x,
+				  unsigned int size_y,
+				  unsigned int dil_x,
+				  unsigned int dil_y)
 {
   FLOAT out = 0, tmp;
   unsigned int x, y, z;

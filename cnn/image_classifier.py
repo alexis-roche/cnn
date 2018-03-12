@@ -3,7 +3,6 @@ import glob
 import gc
 
 import numpy as np
-
 import keras
 
 from ._run import FLOAT_DTYPE
@@ -128,10 +127,10 @@ class ImageClassifier(object):
         else:
             validation_data = (self.x_test, self.y_test)
         self._model.fit(self.x_train, self.y_train,
-                       batch_size=batch_size,
-                       epochs=epochs,
-                       class_weight=class_weight,
-                       validation_data=validation_data)
+                        batch_size=batch_size,
+                        epochs=epochs,
+                        class_weight=class_weight,
+                        validation_data=validation_data)
         
     def run(self, x):
         if self._model is None:
@@ -216,7 +215,6 @@ class ImageClassifier(object):
         else:
             s *= len(self._conv_filters)
         return np.array(self._image_size) / 2 - s
-
     
     image_size = property(_get_image_size)
     nclasses = property(_get_nclasses)

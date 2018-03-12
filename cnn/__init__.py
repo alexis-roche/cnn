@@ -1,7 +1,6 @@
-from .image_classifier import ImageClassifier, load_image_classifier
+from .image_classifier import *
 
-"""
-from nipy.testing import Tester
+from numpy.testing import Tester
 test = Tester().test
 bench = Tester().bench
-"""
+

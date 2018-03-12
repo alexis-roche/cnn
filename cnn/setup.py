@@ -6,7 +6,7 @@ def configuration(parent_package='',top_path=None):
     from numpy.distutils.system_info import get_info
 
     config = Configuration('cnn', parent_package, top_path)
-    #config.add_subpackage('tests')
+    config.add_subpackage('tests')
     #config.add_subpackage('testing')
 
     config.add_include_dirs(config.name.replace('.', os.sep))
