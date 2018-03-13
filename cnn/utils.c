@@ -25,8 +25,8 @@ static inline unsigned int unsigned_ceil(FLOAT a)
     return n;
   else
     return n + 1;
-  
 }
+
 
 static inline void adjust_kernel(unsigned int c,
 				 unsigned int dil,
@@ -268,9 +268,10 @@ void relu_max_pool_image(array3d* src,
 
 
 
-void irina(array1d* src,
-	   array1d* res,
-	   char* fname) {
+void basic_test1d(array1d* src,
+		  array1d* res,
+		  char* fname)
+{
 
   // Create the two input vectors
   const int byte_size = sizeof(FLOAT) * src->dim;
@@ -304,12 +305,12 @@ void irina(array1d* src,
   cl_command_queue command_queue = clCreateCommandQueue(context, device_id, 0, &ret);
   
   // Create memory buffers on the device for each vector 
-  cl_mem a_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY, byte_size, NULL, &ret);
-  cl_mem b_mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE, byte_size, NULL, &ret);
+  cl_mem src_data_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, byte_size, NULL, &ret);
+  cl_mem res_data_cp = clCreateBuffer(context, CL_MEM_READ_WRITE, byte_size, NULL, &ret);
   
   // Copy the input vectors to their respective memory buffers
-  ret = clEnqueueWriteBuffer(command_queue, a_mem_obj, CL_TRUE, 0, byte_size, src->data, 0, NULL, NULL);
-  ret = clEnqueueWriteBuffer(command_queue, b_mem_obj, CL_TRUE, 0, byte_size, res->data, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, src_data_cp, CL_TRUE, 0, byte_size, src->data, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, res_data_cp, CL_TRUE, 0, byte_size, res->data, 0, NULL, NULL);
   
   // Create a program from the kernel source
   cl_program program = clCreateProgramWithSource(context, 1, (const char **)&source_str, (const size_t *)&source_size, &ret);
@@ -321,8 +322,8 @@ void irina(array1d* src,
   cl_kernel kernel = clCreateKernel(program, "vector_add", &ret);
   
   // Set the arguments of the kernel
-  ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&a_mem_obj);
-  ret = clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *)&b_mem_obj);
+  ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&src_data_cp);
+  ret = clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *)&res_data_cp);
   static const float zob = 3.0;
   ret = clSetKernelArg(kernel, 2, sizeof(float), &zob);
   
@@ -332,15 +333,105 @@ void irina(array1d* src,
   ret = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global_item_size, &local_item_size, 0, NULL, NULL);
   
   // Get the result back to host
-  ret = clEnqueueReadBuffer(command_queue, b_mem_obj, CL_TRUE, 0, byte_size, res->data, 0, NULL, NULL);
+  ret = clEnqueueReadBuffer(command_queue, res_data_cp, CL_TRUE, 0, byte_size, res->data, 0, NULL, NULL);
   
   // Clean up
   ret = clFlush(command_queue);
   ret = clFinish(command_queue);
   ret = clReleaseKernel(kernel);
   ret = clReleaseProgram(program);
-  ret = clReleaseMemObject(a_mem_obj);
-  ret = clReleaseMemObject(b_mem_obj);
+  ret = clReleaseMemObject(src_data_cp);
+  ret = clReleaseMemObject(res_data_cp);
   ret = clReleaseCommandQueue(command_queue);
   ret = clReleaseContext(context);
 }
+
+
+void cl_convolve_image(array3d* src,
+		       array3d* kernel,
+		       FLOAT bias,
+		       unsigned int dil_x,
+		       unsigned int dil_y,
+		       array2d* res,
+		       char* fname)
+{
+
+  // Load the CL kernel source code into the array source_str
+  FILE *fp;
+  char *source_str;
+  size_t source_size;
+  
+  fp = fopen(fname, "r");
+  if (!fp) {
+    fprintf(stderr, "Failed to load kernel.\n");
+    exit(1);
+  }
+  source_str = (char*)malloc(MAX_SOURCE_SIZE);
+  source_size = fread( source_str, 1, MAX_SOURCE_SIZE, fp);
+  fclose(fp);
+  
+  // Get platform and device information
+  cl_platform_id platform_id = NULL;
+  cl_device_id device_id = NULL;   
+  cl_uint ret_num_devices;
+  cl_uint ret_num_platforms;
+  cl_int ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
+  ret = clGetDeviceIDs( platform_id, CL_DEVICE_TYPE_DEFAULT, 1, &device_id, &ret_num_devices);
+  
+  // Create an OpenCL context
+  cl_context context = clCreateContext( NULL, 1, &device_id, NULL, NULL, &ret);
+  
+  // Create a command queue
+  cl_command_queue command_queue = clCreateCommandQueue(context, device_id, 0, &ret);
+  
+  // Create memory buffers on the device for each vector
+    // Create the two input vectors
+  const int src_byte_size = sizeof(FLOAT) * src->dimx * src->dimy * src->dimz;
+  const int kernel_byte_size = sizeof(FLOAT) * kernel->dimx * kernel->dimy * kernel->dimz;
+  const int res_byte_size = sizeof(FLOAT) * res->dimx * res->dimy;
+  cl_mem src_data_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, src_byte_size, NULL, &ret);
+  cl_mem kernel_data_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, kernel_byte_size, NULL, &ret);
+  cl_mem res_data_cp = clCreateBuffer(context, CL_MEM_READ_WRITE, res_byte_size, NULL, &ret);
+  
+  // Copy the input vectors to their respective memory buffers
+  ret = clEnqueueWriteBuffer(command_queue, src_data_cp, CL_TRUE, 0, src_byte_size, src->data, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, kernel_data_cp, CL_TRUE, 0, kernel_byte_size, kernel->data, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, res_data_cp, CL_TRUE, 0, res_byte_size, res->data, 0, NULL, NULL);
+  
+  // Create a program from the kernel source
+  cl_program program = clCreateProgramWithSource(context, 1, (const char **)&source_str, (const size_t *)&source_size, &ret);
+  
+  // Build the program
+  ret = clBuildProgram(program, 1, &device_id, NULL, NULL, NULL);
+  
+  // Create the OpenCL kernel
+  cl_kernel k_conv = clCreateKernel(program, "convolve_image", &ret);
+  
+  // Set the arguments of the kernel
+  ret = clSetKernelArg(k_conv, 0, sizeof(cl_mem), (void *)&src_data_cp);
+  ret = clSetKernelArg(k_conv, 1, sizeof(cl_mem), (void *)&kernel_data_cp);
+  ret = clSetKernelArg(k_conv, 2, sizeof(unsigned int), &dil_x);
+  ret = clSetKernelArg(k_conv, 3, sizeof(unsigned int), &dil_y);
+  ret = clSetKernelArg(k_conv, 4, sizeof(cl_mem), (void *)&res_data_cp);
+  
+  // Execute the OpenCL kernel on the list
+  size_t global_item_size[2] = {src->dimx, src->dimy}; // Process the entire lists
+  size_t local_item_size[2] = {10, 10}; // Divide work items into groups of 10
+  ret = clEnqueueNDRangeKernel(command_queue, k_conv, 2, NULL, (const size_t*)&global_item_size, (const size_t*)&local_item_size, 0, NULL, NULL);
+  
+  // Get the result back to host
+  ret = clEnqueueReadBuffer(command_queue, res_data_cp, CL_TRUE, 0, res_byte_size, res->data, 0, NULL, NULL);
+  
+  // Clean up
+  ret = clFlush(command_queue);
+  ret = clFinish(command_queue);
+  ret = clReleaseKernel(k_conv);
+  ret = clReleaseProgram(program);
+  ret = clReleaseMemObject(src_data_cp);
+  ret = clReleaseMemObject(kernel_data_cp);
+  ret = clReleaseMemObject(res_data_cp);
+  ret = clReleaseCommandQueue(command_queue);
+  ret = clReleaseContext(context);
+}
+
+

@@ -55,17 +55,25 @@ cdef extern from "utils.h":
                              unsigned int dil_x, unsigned int dil_y,
                              array3d* res)
 
-    void irina(array1d* src,
-	       array1d* res,
-	       char* fname)
+    void basic_test1d(array1d* src,
+	              array1d* res,
+	              char* fname)
 
+    void cl_convolve_image(array3d* src,
+		           array3d* kernel,
+		           FLOAT bias,
+		           unsigned int dil_x,
+		           unsigned int dil_y,
+		           array2d* res,
+		           char* fname)
+
+    
     
 # Initialize numpy
 np.import_array()
 
 # Global variables
 FLOAT_DTYPE = 'float%s' % (8 * sizeof(FLOAT))
-
 
 # Functions
 cdef to_array1d(np.ndarray A, array1d* a_ptr):
@@ -120,9 +128,7 @@ def _convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
     to_array3d(Src, &src)
     to_array3d(Kernel, &kernel)
     to_array2d(Res, &res)
-    convolve_image(&src, &kernel, bias, fx, fy, &res)
-
-    
+    convolve_image(&src, &kernel, bias, fx, fy, &res)    
     return Res
 
 
@@ -162,14 +168,36 @@ def _relu_max_pool_image(np.ndarray[FLOAT, ndim=3] Src not None,
     return Res
 
 
-def _irina(np.ndarray[FLOAT, ndim=1] Src not None):
+def get_opencl_file():
+    return os.path.join(os.path.split(__file__)[0], 'utils.cl')
+
+
+def _basic_test1d(np.ndarray[FLOAT, ndim=1] Src not None):
     cdef array1d src
     cdef array1d res
     Res = np.zeros(len(Src), dtype=Src.dtype)
     to_array1d(Src, &src)
     to_array1d(Res, &res)
-    fname = os.path.join(os.path.split(__file__)[0], 'utils.cl')
-    irina(&src, &res, <char*>fname)
+    opencl_file = get_opencl_file()
+    basic_test1d(&src, &res, <char*>opencl_file)
     return Res
 
-           
+
+def _cl_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
+                       np.ndarray[FLOAT, ndim=3] Kernel not None,
+                       FLOAT bias,
+                       unsigned int fx,
+                       unsigned int fy):
+    cdef array3d src
+    cdef array3d kernel
+    cdef array2d res
+    #
+    # check dimensions!!!
+    #
+    Res = np.zeros([Src.shape[0], Src.shape[1]], dtype=Src.dtype)
+    to_array3d(Src, &src)
+    to_array3d(Kernel, &kernel)
+    to_array2d(Res, &res)
+    opencl_file = get_opencl_file()
+    cl_convolve_image(&src, &kernel, bias, fx, fy, &res, <char*>opencl_file) 
+    return Res

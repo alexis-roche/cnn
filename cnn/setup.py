@@ -1,7 +1,7 @@
 import os
 
 # TODO. Check OpenCL ICDs:
-# /etc/OpenCL/vendors/intelocl64.icd
+# /etc/OpenCL/vendors/
 
 
 def configuration(parent_package='',top_path=None):

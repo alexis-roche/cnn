@@ -65,9 +65,19 @@ extern "C" {
 				  array3d* res);
 
 
-  extern void irina(array1d* src,
-		    array1d* res,
-		    char* fname);
+  extern void basic_test1d(array1d* src,
+			   array1d* res,
+			   char* fname);
+
+
+  extern void cl_convolve_image(array3d* src,
+				array3d* kernel,
+				FLOAT bias,
+				unsigned int dil_x,
+				unsigned int dil_y,
+				array2d* res,
+				char* fname);
+  
 
 #ifdef __cplusplus
 }
