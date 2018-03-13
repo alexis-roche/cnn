@@ -1,0 +1,2 @@
+cython cnn/*.pyx
+python2.7 setup.py install --home=$HOME
