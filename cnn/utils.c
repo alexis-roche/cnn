@@ -28,37 +28,6 @@ static inline unsigned int unsigned_ceil(FLOAT a)
 }
 
 
-static inline void adjust_kernel(unsigned int c,
-				 unsigned int dil,
-				 size_t kernel_dim,
-				 size_t kernel_offset,
-				 size_t src_dim,
-				 size_t src_offset,
-				 unsigned int* c0,
-				 unsigned int* c1,
-				 size_t* pos_kernel,
-				 size_t* pos_src)
-{
-  int alpha, beta;
-  
-  alpha = dil * half_dimension(kernel_dim) - c;
-  beta = alpha + src_dim;
-    
-  if (alpha > 0) {
-    *c0 = unsigned_ceil(alpha / (FLOAT)dil);
-    if (pos_kernel != NULL)
-      *pos_kernel = (*c0) * kernel_offset;
-  }
-
-  *pos_src = (dil * (*c0) - alpha) * src_offset;
-
-  if ( (dil * kernel_dim) > beta)
-    *c1 = unsigned_ceil(beta / (FLOAT)dil);
- 
-}
-
-
-
 static FLOAT _convolve_image(unsigned int xc,
 			     unsigned int yc,
 			     array3d* src,
@@ -68,30 +37,33 @@ static FLOAT _convolve_image(unsigned int xc,
 {
   FLOAT out = 0;
   unsigned int x, y, z;
-  unsigned int x0 = 0, y0 = 0, x1 = kernel->dimx, y1 = kernel->dimy;
   size_t pos_x_kernel = 0, pos_y_kernel = 0, pos_xy_kernel, pos_x_src, pos_y_src, pos_xy_src;
   FLOAT *buf_kernel, *buf_src;
   size_t inc_src_x = dil_x * src->offx;
   size_t inc_src_y = dil_y * src->offy;
+  int alpha, beta;
   
-  /* Adjust x- and y-coordinate ranges for partial overlap between
-     kernel and source */
-  adjust_kernel(xc, dil_x, kernel->dimx,  kernel->offx,
-		src->dimx, src->offx, 
-		&x0, &x1, &pos_x_kernel, &pos_x_src);
+  /* Return zero if kernel and source do not fully overlap */
+  alpha = xc - dil_x * half_dimension(kernel->dimx);
+  beta = src->dimx - alpha;
+  if ((alpha < 0) || (beta < (dil_x * kernel->dimx)))
+    return out;
+  pos_x_src = alpha * src->offx;
   
-  adjust_kernel(yc, dil_y, kernel->dimy, kernel->offy,
-		src->dimy, src->offy, 
-		&y0, &y1, &pos_y_kernel, &pos_y_src);
+  alpha = yc - dil_y * half_dimension(kernel->dimy);
+  beta = src->dimy - alpha;
+  if ((alpha < 0) || (beta < (dil_y * kernel->dimy)))
+    return out;
+  pos_y_src = alpha * src->offy;
 
-  /* Joint 3D loop over kernel and source */
   
-  for (x=x0; x<x1; x++) {
+  /* Joint 3D loop over kernel and source */
+  for (x=0; x<kernel->dimx; x++) {
 
     pos_xy_kernel = pos_x_kernel + pos_y_kernel;
     pos_xy_src = pos_x_src + pos_y_src;
     
-    for (y=y0; y<y1; y++) {
+    for (y=0; y<kernel->dimy; y++) {
 
       buf_kernel = kernel->data + pos_xy_kernel;
       buf_src = src->data + pos_xy_src;
@@ -182,7 +154,6 @@ void multi_convolve_image(array3d* src,
 
 
 
-
 static FLOAT _relu_max_pool_image(unsigned int xc,
 				  unsigned int yc,
 				  size_t pos_zc,
@@ -194,29 +165,32 @@ static FLOAT _relu_max_pool_image(unsigned int xc,
 {
   FLOAT out = 0, tmp;
   unsigned int x, y, z;
-  unsigned int x0 = 0, y0 = 0, x1 = size_x, y1 = size_y;
-  size_t pos_x = 0, pos_y = 0, pos_xy;
+  size_t pos_x, pos_y, pos_xy;
   FLOAT *buf;
   size_t inc_x = dil_x * src->offx;
   size_t inc_y = dil_y * src->offy;
+  int alpha, beta;
   
-  /* Adjust x- and y-coordinate ranges for partial overlap between
-     kernel and source */
-  adjust_kernel(xc, dil_x, size_x,  0,
-		src->dimx, src->offx, 
-		&x0, &x1, NULL, &pos_x);
-
-  adjust_kernel(yc, dil_y, size_y, 0, 
-		src->dimy, src->offy, 
-		&y0, &y1, NULL, &pos_y);
+  /* Return zero if kernel and source do not fully overlap */
+  alpha = xc - dil_x * half_dimension(size_x);
+  beta = src->dimx - alpha;
+  if ((alpha < 0) || (beta < (dil_x * size_x)))
+    return out;
+  pos_x = alpha * src->offx;
+  
+  alpha = yc - dil_y * half_dimension(size_y);
+  beta = src->dimy - alpha;
+  if ((alpha < 0) || (beta < (dil_y * size_y)))
+    return out;
+  pos_y = alpha * src->offy;
   
   /* 2D loop over source slice to find max value (if positive), and
      subsitute output if applicable */
   pos_x += pos_zc;
-  for (x=x0; x<x1; x++) {
+  for (x=0; x<size_x; x++) {
     pos_xy = pos_x + pos_y;
     buf = src->data + pos_xy;
-    for (y=y0; y<y1; y++) {
+    for (y=0; y<size_y; y++) {
       tmp = *buf;
       if (tmp > out)
 	out = tmp;
@@ -228,7 +202,6 @@ static FLOAT _relu_max_pool_image(unsigned int xc,
 
   return out; 
 }
-
 
 
 
