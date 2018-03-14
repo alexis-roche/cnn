@@ -5,7 +5,7 @@ import gc
 import numpy as np
 import keras
 
-from ._run import FLOAT_DTYPE
+from ._fastrun import FLOAT_DTYPE
 
 
 def dim_after_convolution(dim, kernel_size):
