@@ -35,7 +35,7 @@ def configuration(parent_package='',top_path=None):
     print(' link_args = %s' % opencl_link_args)
 
     # Add runtime module extension
-    config.add_data_files('utils.cl')
+    config.add_data_files('*.cl')
     config.add_include_dirs(config.name.replace('.', os.sep))
     config.add_include_dirs(opencl_include_dirs)
     config.add_extension('_fastrun',

@@ -168,17 +168,14 @@ def _relu_max_pool_image(np.ndarray[FLOAT, ndim=3] Src not None,
     return Res
 
 
-def get_opencl_file():
-    return os.path.join(os.path.split(__file__)[0], 'utils.cl')
-
-
 def _basic_test1d(np.ndarray[FLOAT, ndim=1] Src not None):
     cdef array1d src
     cdef array1d res
     Res = np.zeros(len(Src), dtype=Src.dtype)
     to_array1d(Src, &src)
     to_array1d(Res, &res)
-    opencl_file = get_opencl_file()
+    opencl_file = os.path.join(os.path.split(__file__)[0], 'basic_test1d.cl')
+    print('OpenCL kernel: %s' % opencl_file)
     basic_test1d(&src, &res, <char*>opencl_file)
     return Res
 
@@ -198,6 +195,7 @@ def _gpu_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
     to_array3d(Src, &src)
     to_array3d(Kernel, &kernel)
     to_array2d(Res, &res)
-    opencl_file = get_opencl_file()
+    opencl_file = os.path.join(os.path.split(__file__)[0], 'convolve_image.cl')
+    print('OpenCL kernel: %s' % opencl_file)
     gpu_convolve_image(&src, &kernel, bias, fx, fy, &res, <char*>opencl_file) 
     return Res

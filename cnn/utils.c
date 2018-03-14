@@ -241,9 +241,7 @@ void relu_max_pool_image(array3d* src,
 
 
 
-void basic_test1d(array1d* src,
-		  array1d* res,
-		  char* fname)
+void basic_test1d(array1d* src, array1d* res, char* fname)
 {
 
   // Create the two input vectors
@@ -269,7 +267,7 @@ void basic_test1d(array1d* src,
   cl_uint ret_num_devices;
   cl_uint ret_num_platforms;
   cl_int ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
-  ret = clGetDeviceIDs( platform_id, CL_DEVICE_TYPE_DEFAULT, 1, &device_id, &ret_num_devices);
+  ret = clGetDeviceIDs( platform_id, CL_DEVICE_TYPE_GPU, 1, &device_id, &ret_num_devices);
   
   // Create an OpenCL context
   cl_context context = clCreateContext( NULL, 1, &device_id, NULL, NULL, &ret);
@@ -292,7 +290,7 @@ void basic_test1d(array1d* src,
   ret = clBuildProgram(program, 1, &device_id, NULL, NULL, NULL);
   
   // Create the OpenCL kernel
-  cl_kernel kernel = clCreateKernel(program, "vector_add", &ret);
+  cl_kernel kernel = clCreateKernel(program, "basic_test1d", &ret);
   
   // Set the arguments of the kernel
   ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&src_data_cp);
@@ -307,7 +305,7 @@ void basic_test1d(array1d* src,
   
   // Get the result back to host
   ret = clEnqueueReadBuffer(command_queue, res_data_cp, CL_TRUE, 0, byte_size, res->data, 0, NULL, NULL);
-  
+
   // Clean up
   ret = clFlush(command_queue);
   ret = clFinish(command_queue);
@@ -349,7 +347,7 @@ void gpu_convolve_image(array3d* src,
   cl_uint ret_num_devices;
   cl_uint ret_num_platforms;
   cl_int ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
-  ret = clGetDeviceIDs( platform_id, CL_DEVICE_TYPE_DEFAULT, 1, &device_id, &ret_num_devices);
+  ret = clGetDeviceIDs( platform_id, CL_DEVICE_TYPE_GPU, 1, &device_id, &ret_num_devices);
   
   // Create an OpenCL context
   cl_context context = clCreateContext( NULL, 1, &device_id, NULL, NULL, &ret);
