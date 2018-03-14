@@ -55,9 +55,10 @@ cdef extern from "utils.h":
                              unsigned int dil_x, unsigned int dil_y,
                              array3d* res)
 
-    void basic_test1d(array1d* src,
-	              array1d* res,
-	              char* fname)
+    void gpu_basic_test1d(array1d* src,
+	                  array1d* res,
+	                  char* fname,
+                          unsigned int batch_size)
 
     void gpu_convolve_image(array3d* src,
 		            array3d* kernel,
@@ -65,8 +66,9 @@ cdef extern from "utils.h":
 		            unsigned int dil_x,
 		            unsigned int dil_y,
 		            array2d* res,
-		            char* fname)
-
+		            char* fname,
+                            unsigned int batch_size)
+    
     
     
 # Initialize numpy
@@ -168,7 +170,7 @@ def _relu_max_pool_image(np.ndarray[FLOAT, ndim=3] Src not None,
     return Res
 
 
-def _basic_test1d(np.ndarray[FLOAT, ndim=1] Src not None):
+def _basic_test1d(np.ndarray[FLOAT, ndim=1] Src not None, unsigned int batch_size):
     cdef array1d src
     cdef array1d res
     Res = np.zeros(len(Src), dtype=Src.dtype)
@@ -176,7 +178,7 @@ def _basic_test1d(np.ndarray[FLOAT, ndim=1] Src not None):
     to_array1d(Res, &res)
     opencl_file = os.path.join(os.path.split(__file__)[0], 'basic_test1d.cl')
     print('OpenCL kernel: %s' % opencl_file)
-    basic_test1d(&src, &res, <char*>opencl_file)
+    gpu_basic_test1d(&src, &res, <char*>opencl_file, batch_size)
     return Res
 
 
@@ -184,7 +186,8 @@ def _gpu_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
                         np.ndarray[FLOAT, ndim=3] Kernel not None,
                         FLOAT bias,
                         unsigned int fx,
-                        unsigned int fy):
+                        unsigned int fy,
+                        unsigned int batch_size):
     cdef array3d src
     cdef array3d kernel
     cdef array2d res
@@ -197,5 +200,5 @@ def _gpu_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
     to_array2d(Res, &res)
     opencl_file = os.path.join(os.path.split(__file__)[0], 'convolve_image.cl')
     print('OpenCL kernel: %s' % opencl_file)
-    gpu_convolve_image(&src, &kernel, bias, fx, fy, &res, <char*>opencl_file) 
+    gpu_convolve_image(&src, &kernel, bias, fx, fy, &res, <char*>opencl_file, batch_size) 
     return Res

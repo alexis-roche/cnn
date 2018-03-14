@@ -241,7 +241,7 @@ void relu_max_pool_image(array3d* src,
 
 
 
-void basic_test1d(array1d* src, array1d* res, char* fname)
+void gpu_basic_test1d(array1d* src, array1d* res, char* fname, unsigned int batch_size)
 {
 
   // Create the two input vectors
@@ -300,7 +300,7 @@ void basic_test1d(array1d* src, array1d* res, char* fname)
   
   // Execute the OpenCL kernel on the list
   size_t global_item_size = src->dim; // Process the entire lists
-  size_t local_item_size = 10; // Divide work items into groups of 10
+  size_t local_item_size = batch_size; // Divide work items into groups
   ret = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global_item_size, &local_item_size, 0, NULL, NULL);
   
   // Get the result back to host
@@ -324,7 +324,8 @@ void gpu_convolve_image(array3d* src,
 			unsigned int dil_x,
 			unsigned int dil_y,
 			array2d* res,
-			char* fname)
+			char* fname,
+			unsigned int batch_size)
 {
 
   // Load the CL kernel source code into the array source_str
@@ -338,7 +339,7 @@ void gpu_convolve_image(array3d* src,
     exit(1);
   }
   source_str = (char*)malloc(MAX_SOURCE_SIZE);
-  source_size = fread( source_str, 1, MAX_SOURCE_SIZE, fp);
+  source_size = fread(source_str, 1, MAX_SOURCE_SIZE, fp);
   fclose(fp);
   
   // Get platform and device information
@@ -409,7 +410,7 @@ void gpu_convolve_image(array3d* src,
   
   // Execute the OpenCL kernel on the list
   size_t global_item_size[2] = {src->dimx, src->dimy}; // Process the entire lists
-  size_t local_item_size[2] = {10, 10}; // Divide work items into groups of 10
+  size_t local_item_size[2] = {batch_size, batch_size}; // Divide work items into groups 
   ret = clEnqueueNDRangeKernel(command_queue, k_conv, 2, NULL, (const size_t*)&global_item_size, (const size_t*)&local_item_size, 0, NULL, NULL);
   
   // Get the result back to host

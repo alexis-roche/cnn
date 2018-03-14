@@ -65,9 +65,10 @@ extern "C" {
 				  array3d* res);
 
 
-  extern void basic_test1d(array1d* src,
-			   array1d* res,
-			   char* fname);
+  extern void gpu_basic_test1d(array1d* src,
+			       array1d* res,
+			       char* fname,
+			       unsigned int batch_size);
 
 
   extern void gpu_convolve_image(array3d* src,
@@ -76,7 +77,8 @@ extern "C" {
 				 unsigned int dil_x,
 				 unsigned int dil_y,
 				 array2d* res,
-				 char* fname);
+				 char* fname,
+				 unsigned int batch_size);
   
 
 #ifdef __cplusplus
