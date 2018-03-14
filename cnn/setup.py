@@ -38,9 +38,8 @@ def configuration(parent_package='',top_path=None):
     config.add_data_files('utils.cl')
     config.add_include_dirs(config.name.replace('.', os.sep))
     config.add_include_dirs(opencl_include_dirs)
-    config.add_extension('_run', sources=['_run.pyx', 'run_utils.c'], extra_compile_args=['-O3'])
-    config.add_extension('_opencl',
-                         sources=['_opencl.pyx', 'utils.c'],
+    config.add_extension('_fastrun',
+                         sources=['_fastrun.pyx', 'utils.c'],
                          extra_compile_args=['-O3'],
                          library_dirs=opencl_library_dirs,
                          extra_link_args=opencl_link_args)

@@ -70,13 +70,13 @@ extern "C" {
 			   char* fname);
 
 
-  extern void cl_convolve_image(array3d* src,
-				array3d* kernel,
-				FLOAT bias,
-				unsigned int dil_x,
-				unsigned int dil_y,
-				array2d* res,
-				char* fname);
+  extern void gpu_convolve_image(array3d* src,
+				 array3d* kernel,
+				 FLOAT bias,
+				 unsigned int dil_x,
+				 unsigned int dil_y,
+				 array2d* res,
+				 char* fname);
   
 
 #ifdef __cplusplus
