@@ -3,4 +3,4 @@ Implement GPU max pooling
 GPU multi convolution
 Make OpenCL use FLOAT typedef rather than hard-coded float
 Border effects
-
+Pass compilation options before building

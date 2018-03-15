@@ -11,6 +11,12 @@
  
 #define MAX_SOURCE_SIZE (0x100000)
 
+#if 1
+#define OPENCL_DEVICE CL_DEVICE_TYPE_GPU
+#else
+#define OPENCL_DEVICE CL_DEVICE_TYPE_DEFAULT
+#endif
+
 
 static inline unsigned int half_dimension(unsigned int dim)
 {
@@ -267,7 +273,7 @@ void gpu_basic_test1d(array1d* src, array1d* res, char* fname, unsigned int batc
   cl_uint ret_num_devices;
   cl_uint ret_num_platforms;
   cl_int ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
-  ret = clGetDeviceIDs( platform_id, CL_DEVICE_TYPE_GPU, 1, &device_id, &ret_num_devices);
+  ret = clGetDeviceIDs( platform_id, OPENCL_DEVICE, 1, &device_id, &ret_num_devices);
   
   // Create an OpenCL context
   cl_context context = clCreateContext( NULL, 1, &device_id, NULL, NULL, &ret);
@@ -348,7 +354,7 @@ void gpu_convolve_image(array3d* src,
   cl_uint ret_num_devices;
   cl_uint ret_num_platforms;
   cl_int ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
-  ret = clGetDeviceIDs( platform_id, CL_DEVICE_TYPE_GPU, 1, &device_id, &ret_num_devices);
+  ret = clGetDeviceIDs( platform_id, OPENCL_DEVICE, 1, &device_id, &ret_num_devices);
   
   // Create an OpenCL context
   cl_context context = clCreateContext( NULL, 1, &device_id, NULL, NULL, &ret);
@@ -361,38 +367,45 @@ void gpu_convolve_image(array3d* src,
   cl_int kernel_byte_size = sizeof(FLOAT) * kernel->dimx * kernel->dimy * kernel->dimz;
   cl_int res_byte_size = sizeof(FLOAT) * res->dimx * res->dimy;
   cl_mem src_data_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, src_byte_size, NULL, &ret);
-  cl_mem src_dim_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(size_t), NULL, &ret);
-  cl_mem src_off_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(size_t), NULL, &ret);
+  cl_mem src_dim_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
+  cl_mem src_off_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
   cl_mem kernel_data_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, kernel_byte_size, NULL, &ret);
-  cl_mem kernel_dim_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(size_t), NULL, &ret);
-  cl_mem kernel_off_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(size_t), NULL, &ret);
+  cl_mem kernel_dim_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
+  cl_mem kernel_off_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
   cl_mem dil_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, 2 * sizeof(unsigned int), NULL, &ret);
   cl_mem res_data_cp = clCreateBuffer(context, CL_MEM_READ_WRITE, res_byte_size, NULL, &ret);
-  cl_mem res_off_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, 2 * sizeof(size_t), NULL, &ret);
+  cl_mem res_off_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, 2 * sizeof(unsigned int), NULL, &ret);
   
   // Copy the input vectors to their respective memory buffers
-  size_t src_dim[3] = {src->dimx, src->dimy, src->dimz};
-  size_t src_off[3] = {src->offx, src->offy, src->offz};
-  size_t kernel_dim[3] = {kernel->dimx, kernel->dimy, kernel->dimz};
-  size_t kernel_off[3] = {kernel->offx, kernel->offy, kernel->offz};
+  unsigned int src_dim[3] = {src->dimx, src->dimy, src->dimz};
+  unsigned int src_off[3] = {src->offx, src->offy, src->offz};
+  unsigned int kernel_dim[3] = {kernel->dimx, kernel->dimy, kernel->dimz};
+
+
+  printf("Kernel dim = %d, %d, %d\n", kernel_dim[0], kernel_dim[1], kernel_dim[2]);
+  
+  unsigned int kernel_off[3] = {kernel->offx, kernel->offy, kernel->offz};
   unsigned int dil[2] = {dil_x, dil_y};
-  size_t res_off[2] = {res->offx, res->offy};
+  unsigned int res_off[2] = {res->offx, res->offy};
   
   ret = clEnqueueWriteBuffer(command_queue, src_data_cp, CL_TRUE, 0, src_byte_size, src->data, 0, NULL, NULL);
-  ret = clEnqueueWriteBuffer(command_queue, src_dim_cp, CL_TRUE, 0, 3 * sizeof(size_t), src_dim, 0, NULL, NULL);
-  ret = clEnqueueWriteBuffer(command_queue, src_off_cp, CL_TRUE, 0, 3 * sizeof(size_t), src_off, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, src_dim_cp, CL_TRUE, 0, 3 * sizeof(unsigned int), src_dim, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, src_off_cp, CL_TRUE, 0, 3 * sizeof(unsigned int), src_off, 0, NULL, NULL);
   ret = clEnqueueWriteBuffer(command_queue, kernel_data_cp, CL_TRUE, 0, kernel_byte_size, kernel->data, 0, NULL, NULL);
-  ret = clEnqueueWriteBuffer(command_queue, kernel_dim_cp, CL_TRUE, 0, 3 * sizeof(size_t), kernel_dim, 0, NULL, NULL);
-  ret = clEnqueueWriteBuffer(command_queue, kernel_off_cp, CL_TRUE, 0, 3 * sizeof(size_t), kernel_off, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, kernel_dim_cp, CL_TRUE, 0, 3 * sizeof(unsigned int), kernel_dim, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, kernel_off_cp, CL_TRUE, 0, 3 * sizeof(unsigned int), kernel_off, 0, NULL, NULL);
   ret = clEnqueueWriteBuffer(command_queue, dil_cp, CL_TRUE, 0, 2 * sizeof(unsigned int), dil, 0, NULL, NULL);
   ret = clEnqueueWriteBuffer(command_queue, res_data_cp, CL_TRUE, 0, res_byte_size, res->data, 0, NULL, NULL);
-  ret = clEnqueueWriteBuffer(command_queue, res_off_cp, CL_TRUE, 0, 2 * sizeof(size_t), res_off, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, res_off_cp, CL_TRUE, 0, 2 * sizeof(unsigned int), res_off, 0, NULL, NULL);
   
   // Create a program from the kernel source
   cl_program program = clCreateProgramWithSource(context, 1, (const char**)&source_str, (const size_t*)&source_size, &ret);
   
   // Build the program
   ret = clBuildProgram(program, 1, &device_id, NULL, NULL, NULL);
+
+  fprintf(stderr, "Ret = %d\n", ret);
+
   
   // Create the OpenCL kernel
   cl_kernel k_conv = clCreateKernel(program, "convolve_image", &ret);
