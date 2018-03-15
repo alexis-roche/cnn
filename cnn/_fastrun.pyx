@@ -68,7 +68,15 @@ cdef extern from "utils.h":
 		            array2d* res,
 		            char* fname,
                             unsigned int batch_size)
-    
+
+    void gpu_multi_convolve_image(array3d* src,
+				  array4d* kernels,
+				  array1d* biases,
+				  unsigned int dil_x,
+				  unsigned int dil_y,
+				  array3d* res,
+				  char* fname,
+				  unsigned int batch_size)
     
     
 # Initialize numpy
@@ -177,7 +185,6 @@ def _basic_test1d(np.ndarray[FLOAT, ndim=1] Src not None, unsigned int batch_siz
     to_array1d(Src, &src)
     to_array1d(Res, &res)
     opencl_file = os.path.join(os.path.split(__file__)[0], 'basic_test1d.cl')
-    print('OpenCL kernel: %s' % opencl_file)
     gpu_basic_test1d(&src, &res, <char*>opencl_file, batch_size)
     return Res
 
@@ -199,6 +206,28 @@ def _gpu_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
     to_array3d(Kernel, &kernel)
     to_array2d(Res, &res)
     opencl_file = os.path.join(os.path.split(__file__)[0], 'convolve_image.cl')
-    print('OpenCL kernel: %s' % opencl_file)
     gpu_convolve_image(&src, &kernel, bias, fx, fy, &res, <char*>opencl_file, batch_size) 
+    return Res
+
+
+def _gpu_multi_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
+                              np.ndarray[FLOAT, ndim=4] Kernels not None,
+                              np.ndarray[FLOAT, ndim=1] Biases not None,
+                              unsigned int fx,
+                              unsigned int fy,
+                              unsigned int batch_size):
+    cdef array3d src
+    cdef array4d kernels
+    cdef array1d biases
+    cdef array3d res
+    #
+    # check dimensions!!!
+    #
+    Res = np.zeros([Src.shape[0], Src.shape[1], Kernels.shape[3]], dtype=Src.dtype)
+    to_array3d(Src, &src)
+    to_array4d(Kernels, &kernels)
+    to_array1d(Biases, &biases)
+    to_array3d(Res, &res)
+    opencl_file = os.path.join(os.path.split(__file__)[0], 'convolve_image.cl')
+    gpu_multi_convolve_image(&src, &kernels, &biases, fx, fy, &res, <char*>opencl_file, batch_size) 
     return Res

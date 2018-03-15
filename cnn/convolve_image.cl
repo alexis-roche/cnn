@@ -5,12 +5,13 @@ __kernel void convolve_image(__global float* src_data,
                              __global unsigned int* kernel_dim,
 			     __global unsigned int* kernel_off,
 			     __global unsigned int* dil,
+			     float bias,
 			     __global float* res_data,
 			     __global unsigned int* res_off) {
  
   unsigned int xc = get_global_id(0);
   unsigned int yc = get_global_id(1);
-  float out = 0;
+  float out = bias;
   size_t inc_src_x = dil[0] * src_off[0];
   size_t inc_src_y = dil[1] * src_off[1];
   unsigned int x, y, z;
