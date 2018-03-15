@@ -11,11 +11,9 @@
  
 #define MAX_SOURCE_SIZE (0x100000)
 
-#if 1
 #define OPENCL_DEVICE CL_DEVICE_TYPE_GPU
-#else
-#define OPENCL_DEVICE CL_DEVICE_TYPE_DEFAULT
-#endif
+//#define OPENCL_DEVICE CL_DEVICE_TYPE_DEFAULT
+
 
 
 static inline unsigned int half_dimension(unsigned int dim)
@@ -284,12 +282,12 @@ void gpu_basic_test1d(array1d* src, array1d* res, char* fname, unsigned int batc
   cl_command_queue command_queue = clCreateCommandQueue(context, device_id, 0, &ret);
   
   // Create memory buffers on the device for each vector 
-  cl_mem src_data_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, byte_size, NULL, &ret);
-  cl_mem res_data_cp = clCreateBuffer(context, CL_MEM_READ_WRITE, byte_size, NULL, &ret);
+  cl_mem src_data_dev = clCreateBuffer(context, CL_MEM_READ_ONLY, byte_size, NULL, &ret);
+  cl_mem res_data_dev = clCreateBuffer(context, CL_MEM_READ_WRITE, byte_size, NULL, &ret);
   
   // Copy the input vectors to their respective memory buffers
-  ret = clEnqueueWriteBuffer(command_queue, src_data_cp, CL_TRUE, 0, byte_size, src->data, 0, NULL, NULL);
-  ret = clEnqueueWriteBuffer(command_queue, res_data_cp, CL_TRUE, 0, byte_size, res->data, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, src_data_dev, CL_TRUE, 0, byte_size, src->data, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, res_data_dev, CL_TRUE, 0, byte_size, res->data, 0, NULL, NULL);
   
   // Create a program from the kernel source
   cl_program program = clCreateProgramWithSource(context, 1, (const char **)&source_str, (const size_t *)&source_size, &ret);
@@ -301,8 +299,8 @@ void gpu_basic_test1d(array1d* src, array1d* res, char* fname, unsigned int batc
   cl_kernel kcl = clCreateKernel(program, "basic_test1d", &ret);
   
   // Set the arguments of the kernel
-  ret = clSetKernelArg(kcl, 0, sizeof(cl_mem), (void*)&src_data_cp);
-  ret = clSetKernelArg(kcl, 1, sizeof(cl_mem), (void*)&res_data_cp);
+  ret = clSetKernelArg(kcl, 0, sizeof(cl_mem), (void*)&src_data_dev);
+  ret = clSetKernelArg(kcl, 1, sizeof(cl_mem), (void*)&res_data_dev);
   FLOAT c = 3.0;
   ret = clSetKernelArg(kcl, 2, sizeof(FLOAT), (void*)&c);
   
@@ -312,15 +310,15 @@ void gpu_basic_test1d(array1d* src, array1d* res, char* fname, unsigned int batc
   ret = clEnqueueNDRangeKernel(command_queue, kcl, 1, NULL, &global_item_size, &local_item_size, 0, NULL, NULL);
   
   // Get the result back to host
-  ret = clEnqueueReadBuffer(command_queue, res_data_cp, CL_TRUE, 0, byte_size, res->data, 0, NULL, NULL);
+  ret = clEnqueueReadBuffer(command_queue, res_data_dev, CL_TRUE, 0, byte_size, res->data, 0, NULL, NULL);
 
   // Clean up
   ret = clFlush(command_queue);
   ret = clFinish(command_queue);
   ret = clReleaseKernel(kcl);
   ret = clReleaseProgram(program);
-  ret = clReleaseMemObject(src_data_cp);
-  ret = clReleaseMemObject(res_data_cp);
+  ret = clReleaseMemObject(src_data_dev);
+  ret = clReleaseMemObject(res_data_dev);
   ret = clReleaseCommandQueue(command_queue);
   ret = clReleaseContext(context);
 }
@@ -336,6 +334,9 @@ void gpu_convolve_image(array3d* src,
 			unsigned int batch_size)
 {
 
+  // TODO : make sure arrays src, kernel and res are contiguous (in
+  // the sense that their minimum offset is 1).
+  
   // Load the CL kernel source code into the array source_str
   FILE *fp;
   char *source_str;
@@ -368,15 +369,15 @@ void gpu_convolve_image(array3d* src,
   cl_int src_byte_size = sizeof(FLOAT) * src->dimx * src->dimy * src->dimz;
   cl_int kernel_byte_size = sizeof(FLOAT) * kernel->dimx * kernel->dimy * kernel->dimz;
   cl_int res_byte_size = sizeof(FLOAT) * res->dimx * res->dimy;
-  cl_mem src_data_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, src_byte_size, NULL, &ret);
-  cl_mem src_dim_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
-  cl_mem src_off_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
-  cl_mem kernel_data_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, kernel_byte_size, NULL, &ret);
-  cl_mem kernel_dim_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
-  cl_mem kernel_off_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
-  cl_mem dil_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, 2 * sizeof(unsigned int), NULL, &ret);
-  cl_mem res_data_cp = clCreateBuffer(context, CL_MEM_READ_WRITE, res_byte_size, NULL, &ret);
-  cl_mem res_off_cp = clCreateBuffer(context, CL_MEM_READ_ONLY, 2 * sizeof(unsigned int), NULL, &ret);
+  cl_mem src_data_dev = clCreateBuffer(context, CL_MEM_READ_ONLY, src_byte_size, NULL, &ret);
+  cl_mem src_dim_dev = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
+  cl_mem src_off_dev = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
+  cl_mem kernel_data_dev = clCreateBuffer(context, CL_MEM_READ_ONLY, kernel_byte_size, NULL, &ret);
+  cl_mem kernel_dim_dev = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
+  cl_mem kernel_off_dev = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
+  cl_mem dil_dev = clCreateBuffer(context, CL_MEM_READ_ONLY, 2 * sizeof(unsigned int), NULL, &ret);
+  cl_mem res_data_dev = clCreateBuffer(context, CL_MEM_READ_WRITE, res_byte_size, NULL, &ret);
+  cl_mem res_off_dev = clCreateBuffer(context, CL_MEM_READ_ONLY, 2 * sizeof(unsigned int), NULL, &ret);
   
   // Copy the input vectors to their respective memory buffers
   unsigned int src_dim[3] = {src->dimx, src->dimy, src->dimz};
@@ -386,15 +387,15 @@ void gpu_convolve_image(array3d* src,
   unsigned int dil[2] = {dil_x, dil_y};
   unsigned int res_off[2] = {res->offx, res->offy};
   
-  ret = clEnqueueWriteBuffer(command_queue, src_data_cp, CL_TRUE, 0, src_byte_size, src->data, 0, NULL, NULL);
-  ret = clEnqueueWriteBuffer(command_queue, src_dim_cp, CL_TRUE, 0, 3 * sizeof(unsigned int), src_dim, 0, NULL, NULL);
-  ret = clEnqueueWriteBuffer(command_queue, src_off_cp, CL_TRUE, 0, 3 * sizeof(unsigned int), src_off, 0, NULL, NULL);
-  ret = clEnqueueWriteBuffer(command_queue, kernel_data_cp, CL_TRUE, 0, kernel_byte_size, kernel->data, 0, NULL, NULL);
-  ret = clEnqueueWriteBuffer(command_queue, kernel_dim_cp, CL_TRUE, 0, 3 * sizeof(unsigned int), kernel_dim, 0, NULL, NULL);
-  ret = clEnqueueWriteBuffer(command_queue, kernel_off_cp, CL_TRUE, 0, 3 * sizeof(unsigned int), kernel_off, 0, NULL, NULL);
-  ret = clEnqueueWriteBuffer(command_queue, dil_cp, CL_TRUE, 0, 2 * sizeof(unsigned int), dil, 0, NULL, NULL);
-  ret = clEnqueueWriteBuffer(command_queue, res_data_cp, CL_TRUE, 0, res_byte_size, res->data, 0, NULL, NULL);
-  ret = clEnqueueWriteBuffer(command_queue, res_off_cp, CL_TRUE, 0, 2 * sizeof(unsigned int), res_off, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, src_data_dev, CL_TRUE, 0, src_byte_size, src->data, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, src_dim_dev, CL_TRUE, 0, 3 * sizeof(unsigned int), src_dim, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, src_off_dev, CL_TRUE, 0, 3 * sizeof(unsigned int), src_off, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, kernel_data_dev, CL_TRUE, 0, kernel_byte_size, kernel->data, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, kernel_dim_dev, CL_TRUE, 0, 3 * sizeof(unsigned int), kernel_dim, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, kernel_off_dev, CL_TRUE, 0, 3 * sizeof(unsigned int), kernel_off, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, dil_dev, CL_TRUE, 0, 2 * sizeof(unsigned int), dil, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, res_data_dev, CL_TRUE, 0, res_byte_size, res->data, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, res_off_dev, CL_TRUE, 0, 2 * sizeof(unsigned int), res_off, 0, NULL, NULL);
   
   // Create a program from the kernel source
   cl_program program = clCreateProgramWithSource(context, 1, (const char**)&source_str, (const size_t*)&source_size, &ret);
@@ -407,16 +408,16 @@ void gpu_convolve_image(array3d* src,
   cl_kernel kcl = clCreateKernel(program, "convolve_image", &ret);
   
   // Set the arguments of the kernel
-  ret = clSetKernelArg(kcl, 0, sizeof(cl_mem), (void*)&src_data_cp);
-  ret = clSetKernelArg(kcl, 1, sizeof(cl_mem), (void*)&src_dim_cp);
-  ret = clSetKernelArg(kcl, 2, sizeof(cl_mem), (void*)&src_off_cp);
-  ret = clSetKernelArg(kcl, 3, sizeof(cl_mem), (void*)&kernel_data_cp);
-  ret = clSetKernelArg(kcl, 4, sizeof(cl_mem), (void*)&kernel_dim_cp);
-  ret = clSetKernelArg(kcl, 5, sizeof(cl_mem), (void*)&kernel_off_cp);
-  ret = clSetKernelArg(kcl, 6, sizeof(cl_mem), (void*)&dil_cp);
+  ret = clSetKernelArg(kcl, 0, sizeof(cl_mem), (void*)&src_data_dev);
+  ret = clSetKernelArg(kcl, 1, sizeof(cl_mem), (void*)&src_dim_dev);
+  ret = clSetKernelArg(kcl, 2, sizeof(cl_mem), (void*)&src_off_dev);
+  ret = clSetKernelArg(kcl, 3, sizeof(cl_mem), (void*)&kernel_data_dev);
+  ret = clSetKernelArg(kcl, 4, sizeof(cl_mem), (void*)&kernel_dim_dev);
+  ret = clSetKernelArg(kcl, 5, sizeof(cl_mem), (void*)&kernel_off_dev);
+  ret = clSetKernelArg(kcl, 6, sizeof(cl_mem), (void*)&dil_dev);
   ret = clSetKernelArg(kcl, 7, sizeof(FLOAT), (void*)&bias);
-  ret = clSetKernelArg(kcl, 8, sizeof(cl_mem), (void*)&res_data_cp);
-  ret = clSetKernelArg(kcl, 9, sizeof(cl_mem), (void*)&res_off_cp);
+  ret = clSetKernelArg(kcl, 8, sizeof(cl_mem), (void*)&res_data_dev);
+  ret = clSetKernelArg(kcl, 9, sizeof(cl_mem), (void*)&res_off_dev);
   
   // Execute the OpenCL kernel on the list
   size_t global_item_size[2] = {src->dimx, src->dimy}; // Process the entire lists
@@ -424,16 +425,16 @@ void gpu_convolve_image(array3d* src,
   ret = clEnqueueNDRangeKernel(command_queue, kcl, 2, NULL, (const size_t*)&global_item_size, (const size_t*)&local_item_size, 0, NULL, NULL);
   
   // Get the result back to host
-  ret = clEnqueueReadBuffer(command_queue, res_data_cp, CL_TRUE, 0, res_byte_size, res->data, 0, NULL, NULL);
+  ret = clEnqueueReadBuffer(command_queue, res_data_dev, CL_TRUE, 0, res_byte_size, res->data, 0, NULL, NULL);
   
   // Clean up
   ret = clFlush(command_queue);
   ret = clFinish(command_queue);
   ret = clReleaseKernel(kcl);
   ret = clReleaseProgram(program);
-  ret = clReleaseMemObject(src_data_cp);
-  ret = clReleaseMemObject(kernel_data_cp);
-  ret = clReleaseMemObject(res_data_cp);
+  ret = clReleaseMemObject(src_data_dev);
+  ret = clReleaseMemObject(kernel_data_dev);
+  ret = clReleaseMemObject(res_data_dev);
   ret = clReleaseCommandQueue(command_queue);
   ret = clReleaseContext(context);
 }
@@ -449,6 +450,10 @@ void gpu_multi_convolve_image(array3d* src,
 			      unsigned int batch_size)
 
 {
+
+  // TODO: deal with the fact that calling single convolution "breaks" the contiguity of kernel and res.
+  // We need to copy stuff rather doing views.
+
   array3d kernel;
   array2d res2d;
   unsigned int t;
