@@ -273,7 +273,7 @@ void gpu_basic_test1d(array1d* src, array1d* res, char* fname, unsigned int batc
   cl_uint ret_num_devices;
   cl_uint ret_num_platforms;
   cl_int ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
-  ret = clGetDeviceIDs( platform_id, OPENCL_DEVICE, 1, &device_id, &ret_num_devices);
+  ret = clGetDeviceIDs(platform_id, OPENCL_DEVICE, 1, &device_id, &ret_num_devices);
   
   // Create an OpenCL context
   cl_context context = clCreateContext( NULL, 1, &device_id, NULL, NULL, &ret);
@@ -299,10 +299,10 @@ void gpu_basic_test1d(array1d* src, array1d* res, char* fname, unsigned int batc
   cl_kernel kernel = clCreateKernel(program, "basic_test1d", &ret);
   
   // Set the arguments of the kernel
-  ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&src_data_cp);
-  ret = clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *)&res_data_cp);
-  static const float zob = 3.0;
-  ret = clSetKernelArg(kernel, 2, sizeof(float), &zob);
+  ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&src_data_cp);
+  ret = clSetKernelArg(kernel, 1, sizeof(cl_mem), (void*)&res_data_cp);
+  FLOAT c = 3.0;
+  ret = clSetKernelArg(kernel, 2, sizeof(FLOAT), (void*)&c);
   
   // Execute the OpenCL kernel on the list
   size_t global_item_size = src->dim; // Process the entire lists
@@ -354,7 +354,7 @@ void gpu_convolve_image(array3d* src,
   cl_uint ret_num_devices;
   cl_uint ret_num_platforms;
   cl_int ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
-  ret = clGetDeviceIDs( platform_id, OPENCL_DEVICE, 1, &device_id, &ret_num_devices);
+  ret = clGetDeviceIDs(platform_id, OPENCL_DEVICE, 1, &device_id, &ret_num_devices);
   
   // Create an OpenCL context
   cl_context context = clCreateContext( NULL, 1, &device_id, NULL, NULL, &ret);
