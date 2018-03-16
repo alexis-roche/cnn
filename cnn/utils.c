@@ -16,6 +16,97 @@
 
 
 
+array3d slice3d(array4d* a4d, unsigned int t, FLOAT* data, unsigned char from_buffer)
+{
+  array3d a3d;
+  FLOAT *buf_a3d, *buf_a4d;
+  unsigned int x, y, z;
+  size_t pos_x, pos_xy;
+  
+  a3d.dimx = a4d->dimx;
+  a3d.dimy = a4d->dimy;
+  a3d.dimz = a4d->dimz;
+  a3d.offx = a3d.dimy * a3d.dimz;
+  a3d.offy = a3d.dimz;
+  a3d.offz = 1; 
+  a3d.data = data;
+  
+  buf_a3d = data;
+  pos_x = t * a4d->offt;
+  for(x=0; x<a3d.dimx; x++) {
+    pos_xy = pos_x;
+    for(y=0; y<a3d.dimy; y++) {
+      buf_a4d = a4d->data + pos_xy;
+      for(z=0; z<a3d.dimz; z++) {
+	if (from_buffer)
+	  *buf_a4d = *buf_a3d;
+	else
+	  *buf_a3d = *buf_a4d;
+	buf_a3d ++;
+	buf_a4d += a4d->offz;
+      }
+      pos_xy += a4d->offy;
+    }
+    pos_x += a4d->offx;
+  }
+  return a3d;
+}
+
+array2d slice2d(array3d* a3d, unsigned int z, FLOAT* data, unsigned char from_buffer)
+{
+  array2d a2d;
+  FLOAT *buf_a2d, *buf_a3d;
+  unsigned int x, y;
+  size_t pos_x;
+  
+  a2d.dimx = a3d->dimx;
+  a2d.dimy = a3d->dimy;
+  a2d.offx = a2d.dimy;
+  a2d.offy = 1;
+  a2d.data = data;
+  
+  buf_a2d = data;
+  pos_x = z * a3d->offz;
+  for(x=0; x<a2d.dimx; x++) {
+      buf_a3d = a3d->data + pos_x;
+      for(y=0; y<a2d.dimy; y++) {
+	if (from_buffer)
+	  *buf_a3d = *buf_a2d;
+	else
+	  *buf_a2d = *buf_a3d;
+	buf_a2d ++;
+	buf_a3d += a3d->offy;
+      }
+      pos_x += a3d->offx;
+  }
+  return a2d;
+}
+
+
+array1d slice1d(array2d* a2d, unsigned int y, FLOAT* data, unsigned char from_buffer)
+{
+  array1d a1d;
+  FLOAT *buf_a1d, *buf_a2d;
+  unsigned int x;
+  
+  a1d.dim = a2d->dimx;
+  a1d.off = 1;
+  a1d.data = data;
+  
+  buf_a1d = data;
+  buf_a2d = a2d->data + y * a2d->offy;
+  for(x=0; x<a1d.dim; x++) {
+    if (from_buffer)
+      *buf_a2d = *buf_a1d;
+    else
+      *buf_a1d = *buf_a2d;
+    buf_a1d ++;
+    buf_a2d += a2d->offx;
+  }
+  return a1d;
+}
+
+
 static inline unsigned int half_dimension(unsigned int dim)
 {
   return (dim - 1) / 2;
@@ -457,28 +548,20 @@ void gpu_multi_convolve_image(array3d* src,
   array3d kernel;
   array2d res2d;
   unsigned int t;
-  FLOAT *bias;
-  
-  kernel.dimx = kernels->dimx;
-  kernel.dimy = kernels->dimy;
-  kernel.dimz = kernels->dimz;
-  kernel.offx = kernels->offx;
-  kernel.offy = kernels->offy;
-  kernel.offz = kernels->offz;
-  kernel.data = kernels->data;
+  FLOAT *kernel_data, *res2d_data, *bias;
 
+  kernel_data = (FLOAT*)malloc(kernels->dimx * kernels->dimy * kernels->dimz * sizeof(FLOAT));
+  res2d_data = (FLOAT*)malloc(res->dimx * res->dimy * sizeof(FLOAT));
+  
   bias = biases->data;
-  
-  res2d.dimx = res->dimx;
-  res2d.dimy = res->dimy;
-  res2d.offx = res->offx;
-  res2d.offy = res->offy;
-  res2d.data = res->data;
-
   for(t=0; t<kernels->dimt; t++) {
+    kernel = slice3d(kernels, t, kernel_data, 0);
+    res2d = slice2d(res, t, res2d_data, 0);
     gpu_convolve_image(src, &kernel, *bias, dil_x, dil_y, &res2d, fname, batch_size);
-    kernel.data += kernels->offt;
+    res2d = slice2d(res, t, res2d_data, 1);
     bias += biases->off;
-    res2d.data += res->offz;
   }
+
+  free(kernel_data);
+  free(res2d_data);
 }

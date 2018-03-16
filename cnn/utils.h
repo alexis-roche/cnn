@@ -45,6 +45,11 @@ extern "C" {
     FLOAT* data;
   } array4d;
 
+
+  extern array3d slice3d(array4d* a4d, unsigned int t, FLOAT* data, unsigned char from_buffer);
+  extern array2d slice2d(array3d* a3d, unsigned int z, FLOAT* data, unsigned char from_buffer);
+  extern array1d slice1d(array2d* a2d, unsigned int y, FLOAT* data, unsigned char from_buffer);
+  
   extern void convolve_image(array3d* src,
 			     array3d* kernel,
 			     FLOAT bias,

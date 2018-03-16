@@ -44,6 +44,10 @@ cdef extern from "utils.h":
         size_t offt
         FLOAT* data
 
+    array3d slice3d(array4d* a4d, unsigned int t, FLOAT* data, unsigned char from_buffer)
+    array2d slice2d(array3d* a3d, unsigned int z, FLOAT* data, unsigned char from_buffer)
+    array1d slice1d(array2d* a2d, unsigned int y, FLOAT* data, unsigned char from_buffer)
+        
     void convolve_image(array3d* src, array3d* kernel, FLOAT bias,
                         unsigned int dil_x, unsigned int dil_y,
                         array2d* res)
@@ -122,7 +126,37 @@ cdef to_array4d(np.ndarray A, array4d* a_ptr):
     a_ptr[0].data = <FLOAT*>A.data
 
 
-    
+def _slice3d(np.ndarray[FLOAT, ndim=4] Src not None,
+             unsigned int t):
+    cdef array4d src
+    cdef array3d res
+    Res = np.zeros([Src.shape[0], Src.shape[1], Src.shape[2]], dtype=Src.dtype)
+    to_array4d(Src, &src)
+    to_array3d(Res, &res)
+    res = slice3d(&src, t, res.data, 0) 
+    return Res
+
+def _slice2d(np.ndarray[FLOAT, ndim=3] Src not None,
+             unsigned int z):
+    cdef array3d src
+    cdef array2d res
+    Res = np.zeros([Src.shape[0], Src.shape[1]], dtype=Src.dtype)
+    to_array3d(Src, &src)
+    to_array2d(Res, &res)
+    res = slice2d(&src, z, res.data, 0) 
+    return Res
+
+def _slice1d(np.ndarray[FLOAT, ndim=2] Src not None,
+             unsigned int y):
+    cdef array2d src
+    cdef array1d res
+    Res = np.zeros(Src.shape[0], dtype=Src.dtype)
+    to_array2d(Src, &src)
+    to_array1d(Res, &res)
+    res = slice1d(&src, y, res.data, 0) 
+    return Res
+
+
 def _convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
                     np.ndarray[FLOAT, ndim=3] Kernel not None,
                     FLOAT bias,
