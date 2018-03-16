@@ -80,8 +80,8 @@ extern "C" {
 				 unsigned int dil_y,
 				 array2d* res,
 				 char* fname,
-				 unsigned int batch_x,
-				 unsigned int batch_y);
+				 unsigned int groups_x,
+				 unsigned int groups_y);
   extern void gpu_multi_convolve_image(array3d* src,
 				       array4d* kernels,
 				       array1d* biases,
@@ -89,8 +89,8 @@ extern "C" {
 				       unsigned int dil_y,
 				       array3d* res,
 				       char* fname,
-				       unsigned int batch_x,
-				       unsigned int batch_y);
+				       unsigned int groups_x,
+				       unsigned int groups_y);
 
 #ifdef __cplusplus
 }

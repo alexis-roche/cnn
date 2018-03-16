@@ -338,35 +338,48 @@ void relu_max_pool_image(array3d* src,
 
 
 
-void gpu_basic_test1d(array1d* src, array1d* res, char* fname, unsigned int batch_size)
-{
+static char* load_opencl_source(char* fname, size_t* source_size, cl_device_id* device_id) {
 
-  // Create the two input vectors
-  const int byte_size = sizeof(FLOAT) * src->dim;
-  
-  // Load the kernel source code into the array source_str
+  // Load the CL kernel source code into the array source_str
   FILE *fp;
   char *source_str;
-  size_t source_size;
-  
   fp = fopen(fname, "r");
   if (!fp) {
     fprintf(stderr, "Failed to load kernel.\n");
     exit(1);
   }
   source_str = (char*)malloc(MAX_SOURCE_SIZE);
-  source_size = fread( source_str, 1, MAX_SOURCE_SIZE, fp);
+  *source_size = fread(source_str, 1, MAX_SOURCE_SIZE, fp);
   fclose(fp);
-  
+
   // Get platform and device information
   cl_platform_id platform_id = NULL;
-  cl_device_id device_id = NULL;   
+  *device_id = NULL;   
   cl_uint ret_num_devices;
   cl_uint ret_num_platforms;
   cl_int ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
-  ret = clGetDeviceIDs(platform_id, OPENCL_DEVICE, 1, &device_id, &ret_num_devices);
+  ret = clGetDeviceIDs(platform_id, OPENCL_DEVICE, 1, device_id, &ret_num_devices);
+  if (ret != 0)
+    fprintf(stderr, "COULD NOT REACH GPU\n");
+
+  return source_str;
+}
+
+
+void gpu_basic_test1d(array1d* src, array1d* res, char* fname, unsigned int groups)
+{
+
+  // Create the two input vectors
+  const int byte_size = sizeof(FLOAT) * src->dim;
+  
+  // Load the kernel source code into the array source_str
+  char *source_str;
+  size_t source_size;
+  cl_device_id device_id;   
+  source_str = load_opencl_source(fname, &source_size, &device_id);
   
   // Create an OpenCL context
+  cl_int ret;
   cl_context context = clCreateContext( NULL, 1, &device_id, NULL, NULL, &ret);
   
   // Create a command queue
@@ -397,8 +410,11 @@ void gpu_basic_test1d(array1d* src, array1d* res, char* fname, unsigned int batc
   
   // Execute the OpenCL kernel on the list
   size_t global_item_size = src->dim; // Process the entire lists
-  size_t local_item_size = batch_size; // Divide work items into groups
+  size_t local_item_size = groups; // Divide work items into groups
   ret = clEnqueueNDRangeKernel(command_queue, kcl, 1, NULL, &global_item_size, &local_item_size, 0, NULL, NULL);
+
+  unsigned int max_work_items = CL_DEVICE_MAX_WORK_GROUP_SIZE;  
+  fprintf(stderr, "Max number of work items = %d\n", max_work_items);
   
   // Get the result back to host
   ret = clEnqueueReadBuffer(command_queue, res_data_dev, CL_TRUE, 0, byte_size, res->data, 0, NULL, NULL);
@@ -412,47 +428,26 @@ void gpu_basic_test1d(array1d* src, array1d* res, char* fname, unsigned int batc
   ret = clReleaseMemObject(res_data_dev);
   ret = clReleaseCommandQueue(command_queue);
   ret = clReleaseContext(context);
+  free(source_str);
 }
 
 
-void gpu_convolve_image(array3d* src,
-			array3d* kernel,
-			FLOAT bias,
-			unsigned int dil_x,
-			unsigned int dil_y,
-			array2d* res,
-			char* fname,
-			unsigned int batch_x,
-			unsigned int batch_y)
-{
 
-  // TODO : make sure arrays src, kernel and res are contiguous (in
-  // the sense that their minimum offset is 1).
-  
-  // Load the CL kernel source code into the array source_str
-  FILE *fp;
-  char *source_str;
-  size_t source_size;
-  
-  fp = fopen(fname, "r");
-  if (!fp) {
-    fprintf(stderr, "Failed to load kernel.\n");
-    exit(1);
-  }
-  source_str = (char*)malloc(MAX_SOURCE_SIZE);
-  source_size = fread(source_str, 1, MAX_SOURCE_SIZE, fp);
-  fclose(fp);
-  
-  // Get platform and device information
-  cl_platform_id platform_id = NULL;
-  cl_device_id device_id = NULL;   
-  cl_uint ret_num_devices;
-  cl_uint ret_num_platforms;
-  cl_int ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
-  ret = clGetDeviceIDs(platform_id, OPENCL_DEVICE, 1, &device_id, &ret_num_devices);
-  
+static void _gpu_convolve_image(array3d* src,
+				array3d* kernel,
+				FLOAT bias,
+				unsigned int dil_x,
+				unsigned int dil_y,
+				array2d* res,
+				char* source_str,
+				size_t source_size,
+				cl_device_id device_id,
+				unsigned int groups_x,
+				unsigned int groups_y)
+{  
   // Create an OpenCL context
-  cl_context context = clCreateContext( NULL, 1, &device_id, NULL, NULL, &ret);
+  cl_int ret;
+  cl_context context = clCreateContext(NULL, 1, &device_id, NULL, NULL, &ret);
   
   // Create a command queue
   cl_command_queue command_queue = clCreateCommandQueue(context, device_id, 0, &ret);
@@ -512,8 +507,8 @@ void gpu_convolve_image(array3d* src,
   ret = clSetKernelArg(kcl, 9, sizeof(cl_mem), (void*)&res_off_dev);
   
   // Execute the OpenCL kernel on the list
-  size_t global_item_size[2] = {src->dimx, src->dimy}; // Process the entire lists
-  size_t local_item_size[2] = {batch_x, batch_y}; // Divide work items into groups 
+  size_t global_item_size[2] = {src->dimx, src->dimy}; 
+  size_t local_item_size[2] = {groups_x, groups_y}; 
   ret = clEnqueueNDRangeKernel(command_queue, kcl, 2, NULL, (const size_t*)&global_item_size, (const size_t*)&local_item_size, 0, NULL, NULL);
   
   // Get the result back to host
@@ -532,6 +527,26 @@ void gpu_convolve_image(array3d* src,
 }
 
 
+void gpu_convolve_image(array3d* src,
+			array3d* kernel,
+			FLOAT bias,
+			unsigned int dil_x,
+			unsigned int dil_y,
+			array2d* res,
+			char* fname,
+			unsigned int groups_x,
+			unsigned int groups_y)
+{
+  char *source_str;
+  size_t source_size;
+  cl_device_id device_id;
+  
+  source_str = load_opencl_source(fname, &source_size, &device_id);
+  _gpu_convolve_image(src, kernel, bias, dil_x, dil_y, res, source_str, source_size, device_id, groups_x, groups_y);
+  free(source_str);
+}
+
+
 void gpu_multi_convolve_image(array3d* src,
 			      array4d* kernels,
 			      array1d* biases,
@@ -539,19 +554,20 @@ void gpu_multi_convolve_image(array3d* src,
 			      unsigned int dil_y,
 			      array3d* res,
 			      char* fname,
-			      unsigned int batch_x,
-			      unsigned int batch_y)
+			      unsigned int groups_x,
+			      unsigned int groups_y)
 
 {
-
-  // TODO: deal with the fact that calling single convolution "breaks" the contiguity of kernel and res.
-  // We need to copy stuff rather doing views.
 
   array3d kernel;
   array2d res2d;
   unsigned int t;
   FLOAT *kernel_data, *res2d_data, *bias;
-
+  char *source_str;
+  size_t source_size;
+  cl_device_id device_id;
+  
+  source_str = load_opencl_source(fname, &source_size, &device_id);
   kernel_data = (FLOAT*)malloc(kernels->dimx * kernels->dimy * kernels->dimz * sizeof(FLOAT));
   res2d_data = (FLOAT*)malloc(res->dimx * res->dimy * sizeof(FLOAT));
   
@@ -559,11 +575,12 @@ void gpu_multi_convolve_image(array3d* src,
   for(t=0; t<kernels->dimt; t++) {
     kernel = slice3d(kernels, t, kernel_data, 0);
     res2d = slice2d(res, t, res2d_data, 0);
-    gpu_convolve_image(src, &kernel, *bias, dil_x, dil_y, &res2d, fname, batch_x, batch_y);
+    _gpu_convolve_image(src, &kernel, *bias, dil_x, dil_y, &res2d, source_str, source_size, device_id, groups_x, groups_y);
     res2d = slice2d(res, t, res2d_data, 1);
     bias += biases->off;
   }
 
+  free(source_str);
   free(kernel_data);
   free(res2d_data);
 }
