@@ -422,7 +422,8 @@ void gpu_convolve_image(array3d* src,
 			unsigned int dil_y,
 			array2d* res,
 			char* fname,
-			unsigned int batch_size)
+			unsigned int batch_x,
+			unsigned int batch_y)
 {
 
   // TODO : make sure arrays src, kernel and res are contiguous (in
@@ -512,7 +513,7 @@ void gpu_convolve_image(array3d* src,
   
   // Execute the OpenCL kernel on the list
   size_t global_item_size[2] = {src->dimx, src->dimy}; // Process the entire lists
-  size_t local_item_size[2] = {batch_size, batch_size}; // Divide work items into groups 
+  size_t local_item_size[2] = {batch_x, batch_y}; // Divide work items into groups 
   ret = clEnqueueNDRangeKernel(command_queue, kcl, 2, NULL, (const size_t*)&global_item_size, (const size_t*)&local_item_size, 0, NULL, NULL);
   
   // Get the result back to host
@@ -538,7 +539,8 @@ void gpu_multi_convolve_image(array3d* src,
 			      unsigned int dil_y,
 			      array3d* res,
 			      char* fname,
-			      unsigned int batch_size)
+			      unsigned int batch_x,
+			      unsigned int batch_y)
 
 {
 
@@ -557,7 +559,7 @@ void gpu_multi_convolve_image(array3d* src,
   for(t=0; t<kernels->dimt; t++) {
     kernel = slice3d(kernels, t, kernel_data, 0);
     res2d = slice2d(res, t, res2d_data, 0);
-    gpu_convolve_image(src, &kernel, *bias, dil_x, dil_y, &res2d, fname, batch_size);
+    gpu_convolve_image(src, &kernel, *bias, dil_x, dil_y, &res2d, fname, batch_x, batch_y);
     res2d = slice2d(res, t, res2d_data, 1);
     bias += biases->off;
   }
