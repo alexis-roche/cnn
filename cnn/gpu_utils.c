@@ -3,11 +3,61 @@
 #define MAX_SOURCE_SIZE (0x100000)
 
 
+device_info* device_info_new(int type)
+{
+  device_info* thisone = malloc(sizeof(device_info));
+  cl_platform_id platform_id = NULL;
+  cl_device_type device_type;
+  cl_device_id device_id = NULL;
+  cl_uint ret_num_devices;
+  cl_uint ret_num_platforms;
+  cl_int ret;
+  size_t aux1;
+  cl_uint aux2;
+
+  if (type == 0)
+    device_type = CL_DEVICE_TYPE_CPU;
+  else if (type == 1)
+    device_type = CL_DEVICE_TYPE_GPU;
+  else
+    device_type = CL_DEVICE_TYPE_DEFAULT;
+  
+  ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
+  ret = clGetDeviceIDs(platform_id, device_type, 1, &device_id, &ret_num_devices);
+
+  fprintf(stderr, "Number of platforms = %d\n", ret_num_platforms);
+  fprintf(stderr, "Number of devices = %d\n", ret_num_devices);
+  
+  ret = clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &aux1, NULL);
+  thisone->max_work_group_size = (unsigned int)aux1;
+  fprintf(stderr, "Max work group size = %d\n", thisone->max_work_group_size);
+
+  ret = clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(cl_uint), &aux2, NULL);
+  thisone->max_work_item_dimensions = (unsigned int)aux2;
+  fprintf(stderr, "Max work item dimension = %d\n", thisone->max_work_item_dimensions);
+
+  size_t* max_work_item_sizes = malloc((thisone->max_work_item_dimensions) * sizeof(size_t));
+  thisone->max_work_item_sizes = malloc((thisone->max_work_item_dimensions) * sizeof(unsigned int));
+
+  ret = clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_ITEM_SIZES, (thisone->max_work_item_dimensions) * sizeof(size_t), max_work_item_sizes, NULL);
+  unsigned int i;
+  for (i=0; i<(thisone->max_work_item_dimensions); i ++)
+    thisone->max_work_item_sizes[i] = max_work_item_sizes[i];
+
+  free(max_work_item_sizes);
+  return thisone;
+}
+
+void device_info_delete(device_info* thisone)
+{
+  free(thisone->max_work_item_sizes);
+  free(thisone);
+  return;
+}
+
 
 opencl_env* opencl_env_new(char* fname, char* kname)
 {
-
-  // Create instance
   opencl_env* thisone = (opencl_env*)malloc(sizeof(opencl_env));
   
   // Load the CL kernel source code into the array source_str
@@ -37,7 +87,7 @@ opencl_env* opencl_env_new(char* fname, char* kname)
     fprintf(stderr, "Could not reach GPU\n");
     exit(1);
   }
-  
+
   // Create context and kernel
   thisone->context = clCreateContext(NULL, 1, &(thisone->device_id), NULL, NULL, &ret);
   cl_program program = clCreateProgramWithSource(thisone->context, 1, (const char **)&source_str, (const size_t *)&source_size, &ret);
@@ -47,7 +97,7 @@ opencl_env* opencl_env_new(char* fname, char* kname)
   // Free memory
   free(source_str);
   ret = clReleaseProgram(program);
-  
+
   return thisone;
 }
 
@@ -62,9 +112,9 @@ void opencl_env_delete(opencl_env* thisone)
 }
 
 
+
 void gpu_basic_test1d(array1d* src, array1d* res, char* fname, unsigned int groups)
 {
-
   // Create OpenCL environment
   opencl_env* env = opencl_env_new(fname, "basic_test1d");
   
@@ -91,9 +141,6 @@ void gpu_basic_test1d(array1d* src, array1d* res, char* fname, unsigned int grou
   size_t global_item_size = src->dim; // Process the entire lists
   size_t local_item_size = groups; // Divide work items into groups
   ret = clEnqueueNDRangeKernel(command_queue, env->kernel, 1, NULL, &global_item_size, &local_item_size, 0, NULL, NULL);
-
-  unsigned int max_work_items = CL_DEVICE_MAX_WORK_GROUP_SIZE;  
-  fprintf(stderr, "Max number of work items = %d\n", max_work_items);
   
   // Get the result back to host
   ret = clEnqueueReadBuffer(command_queue, res_data_dev, CL_TRUE, 0, byte_size, res->data, 0, NULL, NULL);

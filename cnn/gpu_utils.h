@@ -17,12 +17,22 @@ extern "C" {
 #define OPENCL_DEVICE CL_DEVICE_TYPE_GPU
 //#define OPENCL_DEVICE CL_DEVICE_TYPE_DEFAULT
 
+
+  typedef struct {
+    unsigned int max_work_group_size;
+    unsigned int max_work_item_dimensions;
+    unsigned int* max_work_item_sizes;
+  } device_info;
   
   typedef struct {
     cl_kernel kernel;
     cl_context context;
     cl_device_id device_id;
   } opencl_env;
+
+  extern device_info* device_info_new(int type);
+
+  extern void device_info_delete(device_info* thisone);
   
   extern opencl_env* opencl_env_new(char* fname, char* kname);
   

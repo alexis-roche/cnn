@@ -47,7 +47,6 @@ cdef extern from "utils.h":
     array3d slice3d(array4d* a4d, unsigned int t, FLOAT* data, unsigned char from_buffer)
     array2d slice2d(array3d* a3d, unsigned int z, FLOAT* data, unsigned char from_buffer)
     array1d slice1d(array2d* a2d, unsigned int y, FLOAT* data, unsigned char from_buffer)
-
     void convolve_image(array3d* src, array3d* kernel, FLOAT bias,
                         unsigned int dil_x, unsigned int dil_y,
                         array2d* res)
@@ -62,11 +61,17 @@ cdef extern from "utils.h":
     
 cdef extern from "gpu_utils.h":
 
+    ctypedef struct device_info:
+        unsigned int max_work_group_size
+        unsigned int max_work_item_dimensions
+        unsigned int* max_work_item_sizes
+
+    device_info* device_info_new(int type)
+    void device_info_delete(device_info* thisone)
     void gpu_basic_test1d(array1d* src,
 	                  array1d* res,
 	                  char* fname,
                           unsigned int groups)
-
     void gpu_convolve_image(array3d* src,
 		            array3d* kernel,
 		            FLOAT bias,
@@ -76,7 +81,6 @@ cdef extern from "gpu_utils.h":
 		            char* fname,
 			    unsigned int groups_x,
                             unsigned int groups_y)
-
     void gpu_multi_convolve_image(array3d* src,
 				  array4d* kernels,
 				  array1d* biases,
@@ -217,6 +221,23 @@ def _relu_max_pool_image(np.ndarray[FLOAT, ndim=3] Src not None,
     relu_max_pool_image(&src, size_x, size_y, dil_x, dil_y, &res)
     return Res
 
+
+def _get_device_info(unsigned int device_type):
+    cdef device_info* info
+    cdef unsigned int i
+    
+    info = device_info_new(device_type)
+
+    Toto = np.zeros(info[0].max_work_item_dimensions, dtype=np.uint)
+    for i in range(info[0].max_work_item_dimensions):
+        Toto[i] = info[0].max_work_item_sizes[i]
+    
+    out = {'max_work_group_size': info[0].max_work_group_size,
+           'max_work_item_dimensions': info[0].max_work_item_dimensions,
+           'mark_work_item_sizes': Toto}
+
+    device_info_delete(info)
+    return out
 
 def _basic_test1d(np.ndarray[FLOAT, ndim=1] Src not None, unsigned int groups):
     cdef array1d src
