@@ -2,9 +2,6 @@
 
 #define MAX_SOURCE_SIZE (0x100000)
 
-#define OPENCL_DEVICE CL_DEVICE_TYPE_GPU
-//#define OPENCL_DEVICE CL_DEVICE_TYPE_DEFAULT
-
 
 
 opencl_env* opencl_env_new(char* fname, char* kname)
@@ -55,7 +52,7 @@ opencl_env* opencl_env_new(char* fname, char* kname)
 }
 
 
-static void opencl_env_delete(opencl_env* thisone)
+void opencl_env_delete(opencl_env* thisone)
 {
   cl_int ret;
   ret = clReleaseKernel(thisone->kernel);
@@ -111,17 +108,19 @@ void gpu_basic_test1d(array1d* src, array1d* res, char* fname, unsigned int grou
 }
 
 
+void gpu_convolve_image(array3d* src,
+			array3d* kernel,
+			FLOAT bias,
+			unsigned int dil_x,
+			unsigned int dil_y,
+			array2d* res,
+			char* fname,
+			unsigned int groups_x,
+			unsigned int groups_y)
+{
+  // Create OpenCL environment
+  opencl_env* env = opencl_env_new(fname, "convolve_image");
 
-static void _gpu_convolve_image(array3d* src,
-				array3d* kernel,
-				FLOAT bias,
-				unsigned int dil_x,
-				unsigned int dil_y,
-				array2d* res,
-				opencl_env* env,
-				unsigned int groups_x,
-				unsigned int groups_y)
-{  
   // Create memory buffers on the device
   cl_int ret;
   cl_int src_byte_size = sizeof(FLOAT) * src->dimx * src->dimy * src->dimz;
@@ -136,7 +135,10 @@ static void _gpu_convolve_image(array3d* src,
   cl_mem dil_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, 2 * sizeof(unsigned int), NULL, &ret);
   cl_mem res_data_dev = clCreateBuffer(env->context, CL_MEM_READ_WRITE, res_byte_size, NULL, &ret);
   cl_mem res_off_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, 2 * sizeof(unsigned int), NULL, &ret);
-  
+    
+  // Create a command queue
+  cl_command_queue command_queue = clCreateCommandQueue(env->context, env->device_id, 0, &ret);
+
   // Copy the input vectors to their respective memory buffers
   unsigned int src_dim[3] = {src->dimx, src->dimy, src->dimz};
   unsigned int src_off[3] = {src->offx, src->offy, src->offz};
@@ -144,9 +146,6 @@ static void _gpu_convolve_image(array3d* src,
   unsigned int kernel_off[3] = {kernel->offx, kernel->offy, kernel->offz};
   unsigned int dil[2] = {dil_x, dil_y};
   unsigned int res_off[2] = {res->offx, res->offy};
-  
-  // Create a command queue and copy arrays from host to device
-  cl_command_queue command_queue = clCreateCommandQueue(env->context, env->device_id, 0, &ret);
   ret = clEnqueueWriteBuffer(command_queue, src_data_dev, CL_TRUE, 0, src_byte_size, src->data, 0, NULL, NULL);
   ret = clEnqueueWriteBuffer(command_queue, src_dim_dev, CL_TRUE, 0, 3 * sizeof(unsigned int), src_dim, 0, NULL, NULL);
   ret = clEnqueueWriteBuffer(command_queue, src_off_dev, CL_TRUE, 0, 3 * sizeof(unsigned int), src_off, 0, NULL, NULL);
@@ -184,25 +183,10 @@ static void _gpu_convolve_image(array3d* src,
   ret = clReleaseMemObject(kernel_data_dev);
   ret = clReleaseMemObject(res_data_dev);
   ret = clReleaseCommandQueue(command_queue);
-}
 
-
-void gpu_convolve_image(array3d* src,
-			array3d* kernel,
-			FLOAT bias,
-			unsigned int dil_x,
-			unsigned int dil_y,
-			array2d* res,
-			char* fname,
-			unsigned int groups_x,
-			unsigned int groups_y)
-{
-  opencl_env* env; 
-
-  env = opencl_env_new(fname, "convolve_image");
-  _gpu_convolve_image(src, kernel, bias, dil_x, dil_y, res, env, groups_x, groups_y);
   opencl_env_delete(env);
 }
+
 
 
 void gpu_multi_convolve_image(array3d* src,
@@ -214,27 +198,85 @@ void gpu_multi_convolve_image(array3d* src,
 			      char* fname,
 			      unsigned int groups_x,
 			      unsigned int groups_y)
-{
+{  
   array3d kernel;
   array2d res2d;
   unsigned int t;
-  FLOAT *kernel_data, *res2d_data, *bias;
-  opencl_env* env;
+  FLOAT* bias;
 
-  env = opencl_env_new(fname, "convolve_image");
-  kernel_data = (FLOAT*)malloc(kernels->dimx * kernels->dimy * kernels->dimz * sizeof(FLOAT));
-  res2d_data = (FLOAT*)malloc(res->dimx * res->dimy * sizeof(FLOAT));
+  opencl_env* env = opencl_env_new(fname, "convolve_image");
+  FLOAT* kernel_data = (FLOAT*)malloc(kernels->dimx * kernels->dimy * kernels->dimz * sizeof(FLOAT));
+  FLOAT* res2d_data = (FLOAT*)malloc(res->dimx * res->dimy * sizeof(FLOAT));
+
+  // Create memory buffers on the device
+  cl_int ret;
+  cl_int src_byte_size = sizeof(FLOAT) * src->dimx * src->dimy * src->dimz;
+  cl_int kernel_byte_size = sizeof(FLOAT) * kernels->dimx * kernels->dimy * kernels->dimz;
+  cl_int res2d_byte_size = sizeof(FLOAT) * res->dimx * res->dimy;
+  cl_mem src_data_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, src_byte_size, NULL, &ret);
+  cl_mem src_dim_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
+  cl_mem src_off_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
+  cl_mem kernel_data_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, kernel_byte_size, NULL, &ret);
+  cl_mem kernel_dim_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
+  cl_mem kernel_off_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
+  cl_mem dil_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, 2 * sizeof(unsigned int), NULL, &ret);
+  cl_mem res2d_data_dev = clCreateBuffer(env->context, CL_MEM_READ_WRITE, res2d_byte_size, NULL, &ret);
+  cl_mem res2d_off_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, 2 * sizeof(unsigned int), NULL, &ret);
   
+  // Copy the input vectors to their respective memory buffers
+  unsigned int src_dim[3] = {src->dimx, src->dimy, src->dimz};
+  unsigned int src_off[3] = {src->offx, src->offy, src->offz};
+  unsigned int kernel_dim[3] = {kernels->dimx, kernels->dimy, kernels->dimz};
+  unsigned int kernel_off[3] = {kernels->dimy * kernels->dimz, kernels->dimz, 1};
+  unsigned int dil[2] = {dil_x, dil_y};
+  unsigned int res2d_off[2] = {res->dimy, 1};
+  size_t global_item_size[2] = {src->dimx, src->dimy}; 
+  size_t local_item_size[2] = {groups_x, groups_y}; 
+  
+  // Create a command queue and copy arrays from host to device 
+  cl_command_queue command_queue = clCreateCommandQueue(env->context, env->device_id, 0, &ret);
+  ret = clEnqueueWriteBuffer(command_queue, src_data_dev, CL_TRUE, 0, src_byte_size, src->data, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, src_dim_dev, CL_TRUE, 0, 3 * sizeof(unsigned int), src_dim, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, src_off_dev, CL_TRUE, 0, 3 * sizeof(unsigned int), src_off, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, kernel_dim_dev, CL_TRUE, 0, 3 * sizeof(unsigned int), kernel_dim, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, kernel_off_dev, CL_TRUE, 0, 3 * sizeof(unsigned int), kernel_off, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, dil_dev, CL_TRUE, 0, 2 * sizeof(unsigned int), dil, 0, NULL, NULL);
+  ret = clEnqueueWriteBuffer(command_queue, res2d_off_dev, CL_TRUE, 0, 2 * sizeof(unsigned int), res2d_off, 0, NULL, NULL);
+    
+  // Set the arguments of the kernel
+  ret = clSetKernelArg(env->kernel, 0, sizeof(cl_mem), (void*)&src_data_dev);
+  ret = clSetKernelArg(env->kernel, 1, sizeof(cl_mem), (void*)&src_dim_dev);
+  ret = clSetKernelArg(env->kernel, 2, sizeof(cl_mem), (void*)&src_off_dev);
+  ret = clSetKernelArg(env->kernel, 3, sizeof(cl_mem), (void*)&kernel_data_dev);
+  ret = clSetKernelArg(env->kernel, 4, sizeof(cl_mem), (void*)&kernel_dim_dev);
+  ret = clSetKernelArg(env->kernel, 5, sizeof(cl_mem), (void*)&kernel_off_dev);
+  ret = clSetKernelArg(env->kernel, 6, sizeof(cl_mem), (void*)&dil_dev);
+  ret = clSetKernelArg(env->kernel, 7, sizeof(FLOAT), (void*)&bias);
+  ret = clSetKernelArg(env->kernel, 8, sizeof(cl_mem), (void*)&res2d_data_dev);
+  ret = clSetKernelArg(env->kernel, 9, sizeof(cl_mem), (void*)&res2d_off_dev);
+
+  // Loop over sequence of kernels and output array
   bias = biases->data;
   for(t=0; t<kernels->dimt; t++) {
     kernel = slice3d(kernels, t, kernel_data, 0);
+    ret = clEnqueueWriteBuffer(command_queue, kernel_data_dev, CL_TRUE, 0, kernel_byte_size, kernel_data, 0, NULL, NULL);
     res2d = slice2d(res, t, res2d_data, 0);
-    _gpu_convolve_image(src, &kernel, *bias, dil_x, dil_y, &res2d, env, groups_x, groups_y);
+    ret = clEnqueueWriteBuffer(command_queue, res2d_data_dev, CL_TRUE, 0, res2d_byte_size, res2d_data, 0, NULL, NULL);    
+    ret = clEnqueueNDRangeKernel(command_queue, env->kernel, 2, NULL, (const size_t*)&global_item_size, (const size_t*)&local_item_size, 0, NULL, NULL);
+    ret = clEnqueueReadBuffer(command_queue, res2d_data_dev, CL_TRUE, 0, res2d_byte_size, res2d_data, 0, NULL, NULL);
     res2d = slice2d(res, t, res2d_data, 1);
     bias += biases->off;
   }
-
+  
+  // Clean up
   free(kernel_data);
   free(res2d_data);
+  ret = clFlush(command_queue);
+  ret = clFinish(command_queue);
+  ret = clReleaseMemObject(src_data_dev);
+  ret = clReleaseMemObject(kernel_data_dev);
+  ret = clReleaseMemObject(res2d_data_dev);
+  ret = clReleaseCommandQueue(command_queue);
   opencl_env_delete(env);
 }
+

@@ -14,6 +14,9 @@ extern "C" {
 #include <CL/cl.h>
 #endif
 
+#define OPENCL_DEVICE CL_DEVICE_TYPE_GPU
+//#define OPENCL_DEVICE CL_DEVICE_TYPE_DEFAULT
+
   
   typedef struct {
     cl_kernel kernel;
@@ -21,7 +24,10 @@ extern "C" {
     cl_device_id device_id;
   } opencl_env;
   
-    
+  extern opencl_env* opencl_env_new(char* fname, char* kname);
+  
+  extern void opencl_env_delete(opencl_env* thisone);
+  
   extern void gpu_basic_test1d(array1d* src,
 			       array1d* res,
 			       char* fname,

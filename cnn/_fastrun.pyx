@@ -273,3 +273,5 @@ def _gpu_multi_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
     opencl_file = os.path.join(os.path.split(__file__)[0], 'convolve_image.cl')
     gpu_multi_convolve_image(&src, &kernels, &biases, dil_x, dil_y, &res, <char*>opencl_file, groups_x, groups_y) 
     return Res
+
+
