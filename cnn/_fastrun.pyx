@@ -47,7 +47,7 @@ cdef extern from "utils.h":
     array3d slice3d(array4d* a4d, unsigned int t, FLOAT* data, unsigned char from_buffer)
     array2d slice2d(array3d* a3d, unsigned int z, FLOAT* data, unsigned char from_buffer)
     array1d slice1d(array2d* a2d, unsigned int y, FLOAT* data, unsigned char from_buffer)
-        
+
     void convolve_image(array3d* src, array3d* kernel, FLOAT bias,
                         unsigned int dil_x, unsigned int dil_y,
                         array2d* res)
@@ -58,6 +58,9 @@ cdef extern from "utils.h":
                              unsigned int size_x, unsigned int size_y,
                              unsigned int dil_x, unsigned int dil_y,
                              array3d* res)
+
+    
+cdef extern from "gpu_utils.h":
 
     void gpu_basic_test1d(array1d* src,
 	                  array1d* res,

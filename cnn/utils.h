@@ -68,7 +68,8 @@ extern "C" {
 				  unsigned int dil_x,
 				  unsigned int dil_y,
 				  array3d* res);
-
+#if 0 
+  
   extern void gpu_basic_test1d(array1d* src,
 			       array1d* res,
 			       char* fname,
@@ -91,7 +92,9 @@ extern "C" {
 				       char* fname,
 				       unsigned int groups_x,
 				       unsigned int groups_y);
+#endif
 
+  
 #ifdef __cplusplus
 }
 #endif
