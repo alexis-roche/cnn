@@ -1,10 +1,5 @@
 #include "utils.h"
 
-#include <math.h>
-#include <stdio.h>
-
-
-
 
 array3d slice3d(array4d* a4d, unsigned int t, FLOAT* data, unsigned char from_buffer)
 {
@@ -323,9 +318,4 @@ void relu_max_pool_image(array3d* src,
     pos_res_z += res->offz;
     pos_src_z += src->offz;
   }
-  
 }
-
-
-
-

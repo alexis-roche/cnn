@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-#include <stdio.h>
+#include <stdlib.h>
 
   typedef float FLOAT;
   
@@ -45,9 +45,10 @@ extern "C" {
     FLOAT* data;
   } array4d;
 
-
   extern array3d slice3d(array4d* a4d, unsigned int t, FLOAT* data, unsigned char from_buffer);
+
   extern array2d slice2d(array3d* a3d, unsigned int z, FLOAT* data, unsigned char from_buffer);
+
   extern array1d slice1d(array2d* a2d, unsigned int y, FLOAT* data, unsigned char from_buffer);
   
   extern void convolve_image(array3d* src,
@@ -56,43 +57,20 @@ extern "C" {
 			     unsigned int dil_x,
 			     unsigned int dil_y,
 			     array2d* res);
+  
   extern void multi_convolve_image(array3d* src,
 				   array4d* kernels,
 				   array1d* biases,
 				   unsigned int dil_x,
 				   unsigned int dil_y,
 				   array3d* res);
+  
   extern void relu_max_pool_image(array3d* src,
 				  unsigned int size_x,
 				  unsigned int size_y,
 				  unsigned int dil_x,
 				  unsigned int dil_y,
 				  array3d* res);
-#if 0 
-  
-  extern void gpu_basic_test1d(array1d* src,
-			       array1d* res,
-			       char* fname,
-			       unsigned int batch_size);
-  extern void gpu_convolve_image(array3d* src,
-				 array3d* kernel,
-				 FLOAT bias,
-				 unsigned int dil_x,
-				 unsigned int dil_y,
-				 array2d* res,
-				 char* fname,
-				 unsigned int groups_x,
-				 unsigned int groups_y);
-  extern void gpu_multi_convolve_image(array3d* src,
-				       array4d* kernels,
-				       array1d* biases,
-				       unsigned int dil_x,
-				       unsigned int dil_y,
-				       array3d* res,
-				       char* fname,
-				       unsigned int groups_x,
-				       unsigned int groups_y);
-#endif
 
   
 #ifdef __cplusplus
