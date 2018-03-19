@@ -338,80 +338,107 @@ void relu_max_pool_image(array3d* src,
 
 
 
-static char* load_opencl_source(char* fname, size_t* source_size, cl_device_id* device_id) {
+typedef struct {
+  cl_kernel kernel;
+  cl_context context;
+  cl_device_id device_id;
+} opencl_env;
 
+
+
+static opencl_env* opencl_env_new(char* fname, char* kname)
+{
+
+  opencl_env* thisone = (opencl_env*)malloc(sizeof(opencl_env));
+  
   // Load the CL kernel source code into the array source_str
   FILE *fp;
   char *source_str;
+  size_t source_size;
   fp = fopen(fname, "r");
   if (!fp) {
     fprintf(stderr, "Failed to load kernel.\n");
     exit(1);
   }
   source_str = (char*)malloc(MAX_SOURCE_SIZE);
-  *source_size = fread(source_str, 1, MAX_SOURCE_SIZE, fp);
+  source_size = fread(source_str, 1, MAX_SOURCE_SIZE, fp);
   fclose(fp);
 
   // Get platform and device information
   cl_platform_id platform_id = NULL;
-  *device_id = NULL;   
   cl_uint ret_num_devices;
   cl_uint ret_num_platforms;
   cl_int ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
-  ret = clGetDeviceIDs(platform_id, OPENCL_DEVICE, 1, device_id, &ret_num_devices);
+
+  fprintf(stderr, "clGetPlatforms: ret=%d\n", ret);
+
+  thisone->device_id = NULL;   
+  ret = clGetDeviceIDs(platform_id, OPENCL_DEVICE, 1, &(thisone->device_id), &ret_num_devices);
   if (ret != 0)
     fprintf(stderr, "COULD NOT REACH GPU\n");
 
-  return source_str;
+  fprintf(stderr, "clGetDeviceIDs: ret=%d\n", ret);
+  
+  // Load the kernel source code into the array source_str
+  thisone->context = clCreateContext(NULL, 1, &(thisone->device_id), NULL, NULL, &ret);
+
+  fprintf(stderr, "clCreateContext: ret=%d\n", ret);
+
+  // Create a program from the kernel source
+  cl_program program = clCreateProgramWithSource(thisone->context, 1, (const char **)&source_str, (const size_t *)&source_size, &ret);
+
+  // Build the program
+  ret = clBuildProgram(program, 1, &(thisone->device_id), NULL, NULL, NULL);
+  
+  // Create the OpenCL kernel
+  thisone->kernel = clCreateKernel(program, kname, &ret);
+
+  free(source_str);
+  ret = clReleaseProgram(program);
+  
+  return thisone;
+}
+
+
+static void opencl_env_delete(opencl_env* thisone)
+{
+  cl_int ret;
+  ret = clReleaseKernel(thisone->kernel);
+  ret = clReleaseContext(thisone->context);
+  free(thisone);  
+  return;
 }
 
 
 void gpu_basic_test1d(array1d* src, array1d* res, char* fname, unsigned int groups)
 {
 
-  // Create the two input vectors
-  const int byte_size = sizeof(FLOAT) * src->dim;
-  
-  // Load the kernel source code into the array source_str
-  char *source_str;
-  size_t source_size;
-  cl_device_id device_id;   
-  source_str = load_opencl_source(fname, &source_size, &device_id);
-  
-  // Create an OpenCL context
-  cl_int ret;
-  cl_context context = clCreateContext( NULL, 1, &device_id, NULL, NULL, &ret);
+  // Create OpenCL environment
+  opencl_env* env = opencl_env_new(fname, "basic_test1d");
   
   // Create a command queue
-  cl_command_queue command_queue = clCreateCommandQueue(context, device_id, 0, &ret);
+  cl_int ret;
+  cl_command_queue command_queue = clCreateCommandQueue(env->context, env->device_id, 0, &ret);
   
   // Create memory buffers on the device for each vector 
-  cl_mem src_data_dev = clCreateBuffer(context, CL_MEM_READ_ONLY, byte_size, NULL, &ret);
-  cl_mem res_data_dev = clCreateBuffer(context, CL_MEM_READ_WRITE, byte_size, NULL, &ret);
+  const int byte_size = sizeof(FLOAT) * src->dim;
+  cl_mem src_data_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, byte_size, NULL, &ret);
+  cl_mem res_data_dev = clCreateBuffer(env->context, CL_MEM_READ_WRITE, byte_size, NULL, &ret);
   
   // Copy the input vectors to their respective memory buffers
   ret = clEnqueueWriteBuffer(command_queue, src_data_dev, CL_TRUE, 0, byte_size, src->data, 0, NULL, NULL);
   ret = clEnqueueWriteBuffer(command_queue, res_data_dev, CL_TRUE, 0, byte_size, res->data, 0, NULL, NULL);
-  
-  // Create a program from the kernel source
-  cl_program program = clCreateProgramWithSource(context, 1, (const char **)&source_str, (const size_t *)&source_size, &ret);
-  
-  // Build the program
-  ret = clBuildProgram(program, 1, &device_id, NULL, NULL, NULL);
-  
-  // Create the OpenCL kernel
-  cl_kernel kcl = clCreateKernel(program, "basic_test1d", &ret);
-  
+    
   // Set the arguments of the kernel
-  ret = clSetKernelArg(kcl, 0, sizeof(cl_mem), (void*)&src_data_dev);
-  ret = clSetKernelArg(kcl, 1, sizeof(cl_mem), (void*)&res_data_dev);
+  ret = clSetKernelArg(env->kernel, 0, sizeof(cl_mem), (void*)&src_data_dev);
+  ret = clSetKernelArg(env->kernel, 1, sizeof(cl_mem), (void*)&res_data_dev);
   FLOAT c = 3.0;
-  ret = clSetKernelArg(kcl, 2, sizeof(FLOAT), (void*)&c);
+  ret = clSetKernelArg(env->kernel, 2, sizeof(FLOAT), (void*)&c);
   
   // Execute the OpenCL kernel on the list
   size_t global_item_size = src->dim; // Process the entire lists
   size_t local_item_size = groups; // Divide work items into groups
-  ret = clEnqueueNDRangeKernel(command_queue, kcl, 1, NULL, &global_item_size, &local_item_size, 0, NULL, NULL);
+  ret = clEnqueueNDRangeKernel(command_queue, env->kernel, 1, NULL, &global_item_size, &local_item_size, 0, NULL, NULL);
 
   unsigned int max_work_items = CL_DEVICE_MAX_WORK_GROUP_SIZE;  
   fprintf(stderr, "Max number of work items = %d\n", max_work_items);
@@ -422,13 +449,10 @@ void gpu_basic_test1d(array1d* src, array1d* res, char* fname, unsigned int grou
   // Clean up
   ret = clFlush(command_queue);
   ret = clFinish(command_queue);
-  ret = clReleaseKernel(kcl);
-  ret = clReleaseProgram(program);
   ret = clReleaseMemObject(src_data_dev);
   ret = clReleaseMemObject(res_data_dev);
   ret = clReleaseCommandQueue(command_queue);
-  ret = clReleaseContext(context);
-  free(source_str);
+  opencl_env_delete(env);
 }
 
 
@@ -439,32 +463,28 @@ static void _gpu_convolve_image(array3d* src,
 				unsigned int dil_x,
 				unsigned int dil_y,
 				array2d* res,
-				char* source_str,
-				size_t source_size,
-				cl_device_id device_id,
+				opencl_env* env,
 				unsigned int groups_x,
 				unsigned int groups_y)
 {  
-  // Create an OpenCL context
-  cl_int ret;
-  cl_context context = clCreateContext(NULL, 1, &device_id, NULL, NULL, &ret);
-  
+
   // Create a command queue
-  cl_command_queue command_queue = clCreateCommandQueue(context, device_id, 0, &ret);
+  cl_int ret;
+  cl_command_queue command_queue = clCreateCommandQueue(env->context, env->device_id, 0, &ret);
   
   // Create memory buffers on the device
   cl_int src_byte_size = sizeof(FLOAT) * src->dimx * src->dimy * src->dimz;
   cl_int kernel_byte_size = sizeof(FLOAT) * kernel->dimx * kernel->dimy * kernel->dimz;
   cl_int res_byte_size = sizeof(FLOAT) * res->dimx * res->dimy;
-  cl_mem src_data_dev = clCreateBuffer(context, CL_MEM_READ_ONLY, src_byte_size, NULL, &ret);
-  cl_mem src_dim_dev = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
-  cl_mem src_off_dev = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
-  cl_mem kernel_data_dev = clCreateBuffer(context, CL_MEM_READ_ONLY, kernel_byte_size, NULL, &ret);
-  cl_mem kernel_dim_dev = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
-  cl_mem kernel_off_dev = clCreateBuffer(context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
-  cl_mem dil_dev = clCreateBuffer(context, CL_MEM_READ_ONLY, 2 * sizeof(unsigned int), NULL, &ret);
-  cl_mem res_data_dev = clCreateBuffer(context, CL_MEM_READ_WRITE, res_byte_size, NULL, &ret);
-  cl_mem res_off_dev = clCreateBuffer(context, CL_MEM_READ_ONLY, 2 * sizeof(unsigned int), NULL, &ret);
+  cl_mem src_data_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, src_byte_size, NULL, &ret);
+  cl_mem src_dim_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
+  cl_mem src_off_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
+  cl_mem kernel_data_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, kernel_byte_size, NULL, &ret);
+  cl_mem kernel_dim_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
+  cl_mem kernel_off_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, 3 * sizeof(unsigned int), NULL, &ret);
+  cl_mem dil_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, 2 * sizeof(unsigned int), NULL, &ret);
+  cl_mem res_data_dev = clCreateBuffer(env->context, CL_MEM_READ_WRITE, res_byte_size, NULL, &ret);
+  cl_mem res_off_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, 2 * sizeof(unsigned int), NULL, &ret);
   
   // Copy the input vectors to their respective memory buffers
   unsigned int src_dim[3] = {src->dimx, src->dimy, src->dimz};
@@ -483,33 +503,23 @@ static void _gpu_convolve_image(array3d* src,
   ret = clEnqueueWriteBuffer(command_queue, dil_dev, CL_TRUE, 0, 2 * sizeof(unsigned int), dil, 0, NULL, NULL);
   ret = clEnqueueWriteBuffer(command_queue, res_data_dev, CL_TRUE, 0, res_byte_size, res->data, 0, NULL, NULL);
   ret = clEnqueueWriteBuffer(command_queue, res_off_dev, CL_TRUE, 0, 2 * sizeof(unsigned int), res_off, 0, NULL, NULL);
-  
-  // Create a program from the kernel source
-  cl_program program = clCreateProgramWithSource(context, 1, (const char**)&source_str, (const size_t*)&source_size, &ret);
-  
-  // Build the program
-  // TODO: test if ret < 0 (meaning the prog cannot build)
-  ret = clBuildProgram(program, 1, &device_id, NULL, NULL, NULL);
-
-  // Create the OpenCL kernel
-  cl_kernel kcl = clCreateKernel(program, "convolve_image", &ret);
-  
+    
   // Set the arguments of the kernel
-  ret = clSetKernelArg(kcl, 0, sizeof(cl_mem), (void*)&src_data_dev);
-  ret = clSetKernelArg(kcl, 1, sizeof(cl_mem), (void*)&src_dim_dev);
-  ret = clSetKernelArg(kcl, 2, sizeof(cl_mem), (void*)&src_off_dev);
-  ret = clSetKernelArg(kcl, 3, sizeof(cl_mem), (void*)&kernel_data_dev);
-  ret = clSetKernelArg(kcl, 4, sizeof(cl_mem), (void*)&kernel_dim_dev);
-  ret = clSetKernelArg(kcl, 5, sizeof(cl_mem), (void*)&kernel_off_dev);
-  ret = clSetKernelArg(kcl, 6, sizeof(cl_mem), (void*)&dil_dev);
-  ret = clSetKernelArg(kcl, 7, sizeof(FLOAT), (void*)&bias);
-  ret = clSetKernelArg(kcl, 8, sizeof(cl_mem), (void*)&res_data_dev);
-  ret = clSetKernelArg(kcl, 9, sizeof(cl_mem), (void*)&res_off_dev);
+  ret = clSetKernelArg(env->kernel, 0, sizeof(cl_mem), (void*)&src_data_dev);
+  ret = clSetKernelArg(env->kernel, 1, sizeof(cl_mem), (void*)&src_dim_dev);
+  ret = clSetKernelArg(env->kernel, 2, sizeof(cl_mem), (void*)&src_off_dev);
+  ret = clSetKernelArg(env->kernel, 3, sizeof(cl_mem), (void*)&kernel_data_dev);
+  ret = clSetKernelArg(env->kernel, 4, sizeof(cl_mem), (void*)&kernel_dim_dev);
+  ret = clSetKernelArg(env->kernel, 5, sizeof(cl_mem), (void*)&kernel_off_dev);
+  ret = clSetKernelArg(env->kernel, 6, sizeof(cl_mem), (void*)&dil_dev);
+  ret = clSetKernelArg(env->kernel, 7, sizeof(FLOAT), (void*)&bias);
+  ret = clSetKernelArg(env->kernel, 8, sizeof(cl_mem), (void*)&res_data_dev);
+  ret = clSetKernelArg(env->kernel, 9, sizeof(cl_mem), (void*)&res_off_dev);
   
   // Execute the OpenCL kernel on the list
   size_t global_item_size[2] = {src->dimx, src->dimy}; 
   size_t local_item_size[2] = {groups_x, groups_y}; 
-  ret = clEnqueueNDRangeKernel(command_queue, kcl, 2, NULL, (const size_t*)&global_item_size, (const size_t*)&local_item_size, 0, NULL, NULL);
+  ret = clEnqueueNDRangeKernel(command_queue, env->kernel, 2, NULL, (const size_t*)&global_item_size, (const size_t*)&local_item_size, 0, NULL, NULL);
   
   // Get the result back to host
   ret = clEnqueueReadBuffer(command_queue, res_data_dev, CL_TRUE, 0, res_byte_size, res->data, 0, NULL, NULL);
@@ -517,13 +527,10 @@ static void _gpu_convolve_image(array3d* src,
   // Clean up
   ret = clFlush(command_queue);
   ret = clFinish(command_queue);
-  ret = clReleaseKernel(kcl);
-  ret = clReleaseProgram(program);
   ret = clReleaseMemObject(src_data_dev);
   ret = clReleaseMemObject(kernel_data_dev);
   ret = clReleaseMemObject(res_data_dev);
   ret = clReleaseCommandQueue(command_queue);
-  ret = clReleaseContext(context);
 }
 
 
@@ -537,13 +544,11 @@ void gpu_convolve_image(array3d* src,
 			unsigned int groups_x,
 			unsigned int groups_y)
 {
-  char *source_str;
-  size_t source_size;
-  cl_device_id device_id;
-  
-  source_str = load_opencl_source(fname, &source_size, &device_id);
-  _gpu_convolve_image(src, kernel, bias, dil_x, dil_y, res, source_str, source_size, device_id, groups_x, groups_y);
-  free(source_str);
+  opencl_env* env; 
+
+  env = opencl_env_new(fname, "convolve_image");
+  _gpu_convolve_image(src, kernel, bias, dil_x, dil_y, res, env, groups_x, groups_y);
+  opencl_env_delete(env);
 }
 
 
@@ -556,18 +561,14 @@ void gpu_multi_convolve_image(array3d* src,
 			      char* fname,
 			      unsigned int groups_x,
 			      unsigned int groups_y)
-
 {
-
   array3d kernel;
   array2d res2d;
   unsigned int t;
   FLOAT *kernel_data, *res2d_data, *bias;
-  char *source_str;
-  size_t source_size;
-  cl_device_id device_id;
-  
-  source_str = load_opencl_source(fname, &source_size, &device_id);
+  opencl_env* env;
+
+  env = opencl_env_new(fname, "convolve_image");
   kernel_data = (FLOAT*)malloc(kernels->dimx * kernels->dimy * kernels->dimz * sizeof(FLOAT));
   res2d_data = (FLOAT*)malloc(res->dimx * res->dimy * sizeof(FLOAT));
   
@@ -575,12 +576,12 @@ void gpu_multi_convolve_image(array3d* src,
   for(t=0; t<kernels->dimt; t++) {
     kernel = slice3d(kernels, t, kernel_data, 0);
     res2d = slice2d(res, t, res2d_data, 0);
-    _gpu_convolve_image(src, &kernel, *bias, dil_x, dil_y, &res2d, source_str, source_size, device_id, groups_x, groups_y);
+    _gpu_convolve_image(src, &kernel, *bias, dil_x, dil_y, &res2d, env, groups_x, groups_y);
     res2d = slice2d(res, t, res2d_data, 1);
     bias += biases->off;
   }
 
-  free(source_str);
   free(kernel_data);
   free(res2d_data);
+  opencl_env_delete(env);
 }
