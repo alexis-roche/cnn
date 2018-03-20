@@ -59,37 +59,44 @@ cdef extern from "utils.h":
                              array3d* res)
 
     
-cdef extern from "gpu_utils.h":
+cdef extern from "opencl_utils.h":
 
-    ctypedef struct device_info:
+    ctypedef enum opencl_device_type:
+        OPENCL_DEVICE_TYPE_DEFAULT = 0,
+        OPENCL_DEVICE_TYPE_CPU = 1,
+        OPENCL_DEVICE_TYPE_GPU = 2,
+        OPENCL_DEVICE_TYPE_ACCELERATOR = 3,
+        OPENCL_DEVICE_TYPE_ALL = 4
+
+    ctypedef struct opencl_device_info:
         unsigned int max_work_group_size
         unsigned int max_work_item_dimensions
         unsigned int* max_work_item_sizes
 
-    device_info* device_info_new(int type)
-    void device_info_delete(device_info* thisone)
-    void gpu_basic_test1d(array1d* src,
-	                  array1d* res,
-	                  char* fname,
-                          unsigned int groups)
-    void gpu_convolve_image(array3d* src,
-		            array3d* kernel,
-		            FLOAT bias,
-		            unsigned int dil_x,
-		            unsigned int dil_y,
-		            array2d* res,
-		            char* fname,
-			    unsigned int groups_x,
-                            unsigned int groups_y)
-    void gpu_multi_convolve_image(array3d* src,
-				  array4d* kernels,
-				  array1d* biases,
-				  unsigned int dil_x,
-				  unsigned int dil_y,
-				  array3d* res,
-				  char* fname,
-				  unsigned int groups_x,
-                                  unsigned int groups_y)
+    opencl_device_info* opencl_device_info_new(int type)
+    void opencl_device_info_delete(opencl_device_info* thisone)
+    void opencl_test1d(array1d* src,
+	               array1d* res,
+	               char* source_file,
+                       unsigned int groups)
+    void opencl_convolve_image(array3d* src,
+		               array3d* kernel,
+		               FLOAT bias,
+		               unsigned int dil_x,
+		               unsigned int dil_y,
+		               array2d* res,
+		               char* source_file,
+			       unsigned int groups_x,
+                               unsigned int groups_y)
+    void opencl_multi_convolve_image(array3d* src,
+				     array4d* kernels,
+				     array1d* biases,
+				     unsigned int dil_x,
+				     unsigned int dil_y,
+				     array3d* res,
+				     char* source_file,
+				     unsigned int groups_x,
+                                     unsigned int groups_y)
 
     
     
@@ -222,41 +229,53 @@ def _relu_max_pool_image(np.ndarray[FLOAT, ndim=3] Src not None,
     return Res
 
 
-def _get_device_info(unsigned int device_type):
-    cdef device_info* info
+def _get_opencl_device_info(unsigned int device_type):
+    cdef opencl_device_info* info
     cdef unsigned int i
     
-    info = device_info_new(device_type)
-
-    Toto = np.zeros(info[0].max_work_item_dimensions, dtype=np.uint)
-    for i in range(info[0].max_work_item_dimensions):
-        Toto[i] = info[0].max_work_item_sizes[i]
+    if device_type == OPENCL_DEVICE_TYPE_CPU:
+        Device_type = 'cpu'
+    elif device_type == OPENCL_DEVICE_TYPE_GPU:
+        Device_type = 'gpu'
+    elif device_type == OPENCL_DEVICE_TYPE_ACCELERATOR:
+        Device_type = 'accelerator'
+    elif device_type == OPENCL_DEVICE_TYPE_ALL:
+        Device_type = 'all'
+    else:
+        Device_type = 'default'
     
-    out = {'max_work_group_size': info[0].max_work_group_size,
-           'max_work_item_dimensions': info[0].max_work_item_dimensions,
-           'mark_work_item_sizes': Toto}
+    info = opencl_device_info_new(device_type)
 
-    device_info_delete(info)
+    Aux = np.zeros(info[0].max_work_item_dimensions, dtype=np.uint)
+    for i in range(info[0].max_work_item_dimensions):
+        Aux[i] = info[0].max_work_item_sizes[i]
+    
+    out = {'device_type': Device_type,
+           'max_work_group_size': info[0].max_work_group_size,
+           'max_work_item_dimensions': info[0].max_work_item_dimensions,
+           'mark_work_item_sizes': Aux}
+
+    opencl_device_info_delete(info)
     return out
 
-def _basic_test1d(np.ndarray[FLOAT, ndim=1] Src not None, unsigned int groups):
+def _opencl_test1d(np.ndarray[FLOAT, ndim=1] Src not None, unsigned int groups):
     cdef array1d src
     cdef array1d res
     Res = np.zeros(len(Src), dtype=Src.dtype)
     to_array1d(Src, &src)
     to_array1d(Res, &res)
-    opencl_file = os.path.join(os.path.split(__file__)[0], 'basic_test1d.cl')
-    gpu_basic_test1d(&src, &res, <char*>opencl_file, groups)
+    source_file = os.path.join(os.path.split(__file__)[0], 'test1d.cl')
+    opencl_test1d(&src, &res, <char*>source_file, groups)
     return Res
 
 
-def _gpu_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
-                        np.ndarray[FLOAT, ndim=3] Kernel not None,
-                        FLOAT bias,
-                        unsigned int dil_x,
-                        unsigned int dil_y,
-                        unsigned int groups_x,
-                        unsigned int groups_y):
+def _opencl_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
+                           np.ndarray[FLOAT, ndim=3] Kernel not None,
+                           FLOAT bias,
+                           unsigned int dil_x,
+                           unsigned int dil_y,
+                           unsigned int groups_x,
+                           unsigned int groups_y):
     cdef array3d src
     cdef array3d kernel
     cdef array2d res
@@ -267,18 +286,18 @@ def _gpu_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
     to_array3d(Src, &src)
     to_array3d(Kernel, &kernel)
     to_array2d(Res, &res)
-    opencl_file = os.path.join(os.path.split(__file__)[0], 'convolve_image.cl')
-    gpu_convolve_image(&src, &kernel, bias, dil_x, dil_y, &res, <char*>opencl_file, groups_x, groups_y) 
+    source_file = os.path.join(os.path.split(__file__)[0], 'convolve_image.cl')
+    opencl_convolve_image(&src, &kernel, bias, dil_x, dil_y, &res, <char*>source_file, groups_x, groups_y) 
     return Res
 
 
-def _gpu_multi_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
-                              np.ndarray[FLOAT, ndim=4] Kernels not None,
-                              np.ndarray[FLOAT, ndim=1] Biases not None,
-                              unsigned int dil_x,
-                              unsigned int dil_y,
-                              unsigned int groups_x,
-                              unsigned int groups_y):
+def _opencl_multi_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
+                                 np.ndarray[FLOAT, ndim=4] Kernels not None,
+                                 np.ndarray[FLOAT, ndim=1] Biases not None,
+                                 unsigned int dil_x,
+                                 unsigned int dil_y,
+                                 unsigned int groups_x,
+                                 unsigned int groups_y):
     cdef array3d src
     cdef array4d kernels
     cdef array1d biases
@@ -291,8 +310,8 @@ def _gpu_multi_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
     to_array4d(Kernels, &kernels)
     to_array1d(Biases, &biases)
     to_array3d(Res, &res)
-    opencl_file = os.path.join(os.path.split(__file__)[0], 'convolve_image.cl')
-    gpu_multi_convolve_image(&src, &kernels, &biases, dil_x, dil_y, &res, <char*>opencl_file, groups_x, groups_y) 
+    source_file = os.path.join(os.path.split(__file__)[0], 'convolve_image.cl')
+    opencl_multi_convolve_image(&src, &kernels, &biases, dil_x, dil_y, &res, <char*>source_file, groups_x, groups_y) 
     return Res
 
 

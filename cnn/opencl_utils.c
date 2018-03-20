@@ -1,13 +1,44 @@
-#include "gpu_utils.h"
+#include "opencl_utils.h"
 
 #define MAX_SOURCE_SIZE (0x100000)
 
 
-device_info* device_info_new(int type)
+static cl_device_type match_device_type(opencl_device_type device_type)
 {
-  device_info* thisone = malloc(sizeof(device_info));
+  cl_device_type out;
+
+  switch(device_type) {
+
+  case OPENCL_DEVICE_TYPE_CPU:
+    out = CL_DEVICE_TYPE_CPU;
+    break;
+
+  case OPENCL_DEVICE_TYPE_GPU:
+    out = CL_DEVICE_TYPE_GPU;
+    break;
+
+  case OPENCL_DEVICE_TYPE_ACCELERATOR:
+    out = CL_DEVICE_TYPE_ACCELERATOR;
+    break;
+
+  case OPENCL_DEVICE_TYPE_ALL:
+    out = CL_DEVICE_TYPE_ALL;
+    break;
+
+  case OPENCL_DEVICE_TYPE_DEFAULT:
+  default:
+    out = CL_DEVICE_TYPE_DEFAULT;
+    break;
+
+  }
+
+  return out;  
+}
+
+opencl_device_info* opencl_device_info_new(opencl_device_type device_type)
+{
+  opencl_device_info* thisone = malloc(sizeof(opencl_device_info));
   cl_platform_id platform_id = NULL;
-  cl_device_type device_type;
   cl_device_id device_id = NULL;
   cl_uint ret_num_devices;
   cl_uint ret_num_platforms;
@@ -15,30 +46,17 @@ device_info* device_info_new(int type)
   size_t aux1;
   cl_uint aux2;
 
-  if (type == 0)
-    device_type = CL_DEVICE_TYPE_CPU;
-  else if (type == 1)
-    device_type = CL_DEVICE_TYPE_GPU;
-  else
-    device_type = CL_DEVICE_TYPE_DEFAULT;
-  
   ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
-  ret = clGetDeviceIDs(platform_id, device_type, 1, &device_id, &ret_num_devices);
+  ret = clGetDeviceIDs(platform_id, match_device_type(device_type), 1, &device_id, &ret_num_devices);  
 
-  fprintf(stderr, "Number of platforms = %d\n", ret_num_platforms);
-  fprintf(stderr, "Number of devices = %d\n", ret_num_devices);
-  
   ret = clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &aux1, NULL);
   thisone->max_work_group_size = (unsigned int)aux1;
-  fprintf(stderr, "Max work group size = %d\n", thisone->max_work_group_size);
 
   ret = clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(cl_uint), &aux2, NULL);
   thisone->max_work_item_dimensions = (unsigned int)aux2;
-  fprintf(stderr, "Max work item dimension = %d\n", thisone->max_work_item_dimensions);
 
   size_t* max_work_item_sizes = malloc((thisone->max_work_item_dimensions) * sizeof(size_t));
   thisone->max_work_item_sizes = malloc((thisone->max_work_item_dimensions) * sizeof(unsigned int));
-
   ret = clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_ITEM_SIZES, (thisone->max_work_item_dimensions) * sizeof(size_t), max_work_item_sizes, NULL);
   unsigned int i;
   for (i=0; i<(thisone->max_work_item_dimensions); i ++)
@@ -48,7 +66,7 @@ device_info* device_info_new(int type)
   return thisone;
 }
 
-void device_info_delete(device_info* thisone)
+void opencl_device_info_delete(opencl_device_info* thisone)
 {
   free(thisone->max_work_item_sizes);
   free(thisone);
@@ -56,22 +74,22 @@ void device_info_delete(device_info* thisone)
 }
 
 
-opencl_env* opencl_env_new(char* fname, char* kname)
+opencl_env* opencl_env_new(char* source_file, char* kernel_name)
 {
   opencl_env* thisone = (opencl_env*)malloc(sizeof(opencl_env));
   
-  // Load the CL kernel source code into the array source_str
+  // Load the CL kernel source code into the array source_code
   FILE *fp;
-  char *source_str;
+  char *source_code;
   size_t source_size;
-  fp = fopen(fname, "r");
+  fp = fopen(source_file, "r");
   if (!fp) {
     free(thisone);
     fprintf(stderr, "Failed to load kernel.\n");
     exit(1);
   }
-  source_str = (char*)malloc(MAX_SOURCE_SIZE);
-  source_size = fread(source_str, 1, MAX_SOURCE_SIZE, fp);
+  source_code = (char*)malloc(MAX_SOURCE_SIZE);
+  source_size = fread(source_code, 1, MAX_SOURCE_SIZE, fp);
   fclose(fp);
 
   // Get platform and device information
@@ -83,19 +101,19 @@ opencl_env* opencl_env_new(char* fname, char* kname)
   ret = clGetDeviceIDs(platform_id, OPENCL_DEVICE, 1, &(thisone->device_id), &ret_num_devices);
   if (ret != 0) {
     free(thisone);
-    free(source_str);
+    free(source_code);
     fprintf(stderr, "Could not reach GPU\n");
     exit(1);
   }
 
   // Create context and kernel
   thisone->context = clCreateContext(NULL, 1, &(thisone->device_id), NULL, NULL, &ret);
-  cl_program program = clCreateProgramWithSource(thisone->context, 1, (const char **)&source_str, (const size_t *)&source_size, &ret);
+  cl_program program = clCreateProgramWithSource(thisone->context, 1, (const char **)&source_code, (const size_t *)&source_size, &ret);
   ret = clBuildProgram(program, 1, &(thisone->device_id), NULL, NULL, NULL);
-  thisone->kernel = clCreateKernel(program, kname, &ret);
+  thisone->kernel = clCreateKernel(program, kernel_name, &ret);
 
   // Free memory
-  free(source_str);
+  free(source_code);
   ret = clReleaseProgram(program);
 
   return thisone;
@@ -112,11 +130,10 @@ void opencl_env_delete(opencl_env* thisone)
 }
 
 
-
-void gpu_basic_test1d(array1d* src, array1d* res, char* fname, unsigned int groups)
+void opencl_test1d(array1d* src, array1d* res, char* source_file, unsigned int groups)
 {
   // Create OpenCL environment
-  opencl_env* env = opencl_env_new(fname, "basic_test1d");
+  opencl_env* env = opencl_env_new(source_file, "test1d");
   
   // Create a command queue
   cl_int ret;
@@ -155,18 +172,18 @@ void gpu_basic_test1d(array1d* src, array1d* res, char* fname, unsigned int grou
 }
 
 
-void gpu_convolve_image(array3d* src,
-			array3d* kernel,
-			FLOAT bias,
-			unsigned int dil_x,
-			unsigned int dil_y,
-			array2d* res,
-			char* fname,
-			unsigned int groups_x,
-			unsigned int groups_y)
+void opencl_convolve_image(array3d* src,
+			   array3d* kernel,
+			   FLOAT bias,
+			   unsigned int dil_x,
+			   unsigned int dil_y,
+			   array2d* res,
+			   char* source_file,
+			   unsigned int groups_x,
+			   unsigned int groups_y)
 {
   // Create OpenCL environment
-  opencl_env* env = opencl_env_new(fname, "convolve_image");
+  opencl_env* env = opencl_env_new(source_file, "convolve_image");
 
   // Create memory buffers on the device
   cl_int ret;
@@ -236,22 +253,22 @@ void gpu_convolve_image(array3d* src,
 
 
 
-void gpu_multi_convolve_image(array3d* src,
-			      array4d* kernels,
-			      array1d* biases,
-			      unsigned int dil_x,
-			      unsigned int dil_y,
-			      array3d* res,
-			      char* fname,
-			      unsigned int groups_x,
-			      unsigned int groups_y)
+void opencl_multi_convolve_image(array3d* src,
+				 array4d* kernels,
+				 array1d* biases,
+				 unsigned int dil_x,
+				 unsigned int dil_y,
+				 array3d* res,
+				 char* source_file,
+				 unsigned int groups_x,
+				 unsigned int groups_y)
 {  
   array3d kernel;
   array2d res2d;
   unsigned int t;
   FLOAT* bias;
 
-  opencl_env* env = opencl_env_new(fname, "convolve_image");
+  opencl_env* env = opencl_env_new(source_file, "convolve_image");
   FLOAT* kernel_data = (FLOAT*)malloc(kernels->dimx * kernels->dimy * kernels->dimz * sizeof(FLOAT));
   FLOAT* res2d_data = (FLOAT*)malloc(res->dimx * res->dimy * sizeof(FLOAT));
 
