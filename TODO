@@ -1,10 +1,16 @@
 * Fix GPU convolution
 * Non-contiguous buffer for multi-convolution
-Implement GPU max pooling
 * GPU multi convolution
+
 Make OpenCL use FLOAT typedef rather than hard-coded float
-Border effects
 Pass compilation options nicely
+
 Checks in Cython module: array dimension and contiguity (for GPU routines).
 Pass CPU/GPU as argument to OpenCL.
+
 DEBUG: looks like the GPU implementation sometimes screws up completely... why???
+Error checking
+
+Implement GPU max pooling
+Border effects
+

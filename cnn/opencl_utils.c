@@ -82,10 +82,11 @@ opencl_env* opencl_env_new(char* source_file, char* kernel_name)
   FILE *fp;
   char *source_code;
   size_t source_size;
+  
   fp = fopen(source_file, "r");
   if (!fp) {
     free(thisone);
-    fprintf(stderr, "Failed to load kernel.\n");
+    fprintf(stderr, "WARNING: failed to load kernel.\n");
     exit(1);
   }
   source_code = (char*)malloc(MAX_SOURCE_SIZE);
@@ -97,20 +98,29 @@ opencl_env* opencl_env_new(char* source_file, char* kernel_name)
   cl_uint ret_num_devices;
   cl_uint ret_num_platforms;
   cl_int ret = clGetPlatformIDs(1, &platform_id, &ret_num_platforms);
+  if (ret != 0)
+    fprintf(stderr, "WARNING: fail to get platform IDs\n");
+  
   thisone->device_id = NULL;   
   ret = clGetDeviceIDs(platform_id, OPENCL_DEVICE, 1, &(thisone->device_id), &ret_num_devices);
-  if (ret != 0) {
-    free(thisone);
-    free(source_code);
-    fprintf(stderr, "Could not reach GPU\n");
-    exit(1);
-  }
+  if (ret != 0)
+    fprintf(stderr, "WARNING: fail to get device IDs\n");
 
-  // Create context and kernel
   thisone->context = clCreateContext(NULL, 1, &(thisone->device_id), NULL, NULL, &ret);
+  if (ret != 0) 
+    fprintf(stderr, "WARNING: fail to create context\n");
+
   cl_program program = clCreateProgramWithSource(thisone->context, 1, (const char **)&source_code, (const size_t *)&source_size, &ret);
+  if (ret != 0)
+    fprintf(stderr, "WARNING: fail to create program\n");
+ 
   ret = clBuildProgram(program, 1, &(thisone->device_id), NULL, NULL, NULL);
+  if (ret != 0)
+    fprintf(stderr, "WARNING: fail to build program\n");
+
   thisone->kernel = clCreateKernel(program, kernel_name, &ret);
+  if (ret != 0) 
+    fprintf(stderr, "WARNING: fail to create kernel\n");
 
   // Free memory
   free(source_code);
