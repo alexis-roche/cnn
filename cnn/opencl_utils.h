@@ -14,9 +14,6 @@ extern "C" {
 #include <CL/cl.h>
 #endif
 
-#define OPENCL_DEVICE CL_DEVICE_TYPE_GPU
-//#define OPENCL_DEVICE CL_DEVICE_TYPE_DEFAULT
-
   typedef enum {
     OPENCL_DEVICE_TYPE_DEFAULT = 0,
     OPENCL_DEVICE_TYPE_CPU = 1,
@@ -41,13 +38,14 @@ extern "C" {
 
   extern void opencl_device_info_delete(opencl_device_info* thisone);
   
-  extern opencl_env* opencl_env_new(char* source_file, char* kernel_name);
+  extern opencl_env* opencl_env_new(char* source_file, char* kernel_name, opencl_device_type device_type);
   
   extern void opencl_env_delete(opencl_env* thisone);
   
   extern void opencl_test1d(array1d* src,
 			    array1d* res,
 			    char* source_file,
+			    opencl_device_type device_type,
 			    unsigned int batch_size);
   
   extern void opencl_convolve_image(array3d* src,
@@ -57,6 +55,7 @@ extern "C" {
 				    unsigned int dil_y,
 				    array2d* res,
 				    char* source_file,
+				    opencl_device_type device_type,
 				    unsigned int groups_x,
 				    unsigned int groups_y);
   
@@ -67,6 +66,7 @@ extern "C" {
 					  unsigned int dil_y,
 					  array3d* res,
 					  char* source_file,
+					  opencl_device_type device_type,
 					  unsigned int groups_x,
 					  unsigned int groups_y);
   

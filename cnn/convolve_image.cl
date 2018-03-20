@@ -8,7 +8,7 @@ __kernel void convolve_image(__global float* src_data,
 			     float bias,
 			     __global float* res_data,
 			     __global unsigned int* res_off) {
- 
+
   unsigned int xc = get_global_id(0);
   unsigned int yc = get_global_id(1);
   float out = bias;
@@ -53,5 +53,4 @@ __kernel void convolve_image(__global float* src_data,
 
   pos_res = xc * res_off[0] + yc * res_off[1];
   res_data[pos_res] = out;
-  
 }

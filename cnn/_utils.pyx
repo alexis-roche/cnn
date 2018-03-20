@@ -78,6 +78,7 @@ cdef extern from "opencl_utils.h":
     void opencl_test1d(array1d* src,
 	               array1d* res,
 	               char* source_file,
+                       opencl_device_type device_type,
                        unsigned int groups)
     void opencl_convolve_image(array3d* src,
 		               array3d* kernel,
@@ -86,6 +87,7 @@ cdef extern from "opencl_utils.h":
 		               unsigned int dil_y,
 		               array2d* res,
 		               char* source_file,
+                               opencl_device_type device_type,
 			       unsigned int groups_x,
                                unsigned int groups_y)
     void opencl_multi_convolve_image(array3d* src,
@@ -95,6 +97,7 @@ cdef extern from "opencl_utils.h":
 				     unsigned int dil_y,
 				     array3d* res,
 				     char* source_file,
+                                     opencl_device_type device_type,
 				     unsigned int groups_x,
                                      unsigned int groups_y)
 
@@ -229,7 +232,7 @@ def _relu_max_pool_image(np.ndarray[FLOAT, ndim=3] Src not None,
     return Res
 
 
-def _get_opencl_device_info(unsigned int device_type):
+def _get_opencl_device_info(opencl_device_type device_type):
     cdef opencl_device_info* info
     cdef unsigned int i
     
@@ -258,14 +261,16 @@ def _get_opencl_device_info(unsigned int device_type):
     opencl_device_info_delete(info)
     return out
 
-def _opencl_test1d(np.ndarray[FLOAT, ndim=1] Src not None, unsigned int groups):
+def _opencl_test1d(np.ndarray[FLOAT, ndim=1] Src not None,
+                   opencl_device_type device_type,
+                   unsigned int groups):
     cdef array1d src
     cdef array1d res
     Res = np.zeros(len(Src), dtype=Src.dtype)
     to_array1d(Src, &src)
     to_array1d(Res, &res)
     source_file = os.path.join(os.path.split(__file__)[0], 'test1d.cl')
-    opencl_test1d(&src, &res, <char*>source_file, groups)
+    opencl_test1d(&src, &res, <char*>source_file, device_type, groups)
     return Res
 
 
@@ -274,6 +279,7 @@ def _opencl_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
                            FLOAT bias,
                            unsigned int dil_x,
                            unsigned int dil_y,
+                           opencl_device_type device_type,
                            unsigned int groups_x,
                            unsigned int groups_y):
     cdef array3d src
@@ -287,7 +293,7 @@ def _opencl_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
     to_array3d(Kernel, &kernel)
     to_array2d(Res, &res)
     source_file = os.path.join(os.path.split(__file__)[0], 'convolve_image.cl')
-    opencl_convolve_image(&src, &kernel, bias, dil_x, dil_y, &res, <char*>source_file, groups_x, groups_y) 
+    opencl_convolve_image(&src, &kernel, bias, dil_x, dil_y, &res, <char*>source_file, device_type, groups_x, groups_y) 
     return Res
 
 
@@ -296,6 +302,7 @@ def _opencl_multi_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
                                  np.ndarray[FLOAT, ndim=1] Biases not None,
                                  unsigned int dil_x,
                                  unsigned int dil_y,
+                                 opencl_device_type device_type,
                                  unsigned int groups_x,
                                  unsigned int groups_y):
     cdef array3d src
@@ -311,7 +318,7 @@ def _opencl_multi_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
     to_array1d(Biases, &biases)
     to_array3d(Res, &res)
     source_file = os.path.join(os.path.split(__file__)[0], 'convolve_image.cl')
-    opencl_multi_convolve_image(&src, &kernels, &biases, dil_x, dil_y, &res, <char*>source_file, groups_x, groups_y) 
+    opencl_multi_convolve_image(&src, &kernels, &biases, dil_x, dil_y, &res, <char*>source_file, device_type, groups_x, groups_y) 
     return Res
 
 

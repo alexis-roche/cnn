@@ -74,7 +74,7 @@ void opencl_device_info_delete(opencl_device_info* thisone)
 }
 
 
-opencl_env* opencl_env_new(char* source_file, char* kernel_name)
+opencl_env* opencl_env_new(char* source_file, char* kernel_name, opencl_device_type device_type)
 {
   opencl_env* thisone = (opencl_env*)malloc(sizeof(opencl_env));
   
@@ -102,7 +102,7 @@ opencl_env* opencl_env_new(char* source_file, char* kernel_name)
     fprintf(stderr, "WARNING: fail to get platform IDs\n");
   
   thisone->device_id = NULL;   
-  ret = clGetDeviceIDs(platform_id, OPENCL_DEVICE, 1, &(thisone->device_id), &ret_num_devices);
+  ret = clGetDeviceIDs(platform_id, match_device_type(device_type), 1, &(thisone->device_id), &ret_num_devices);
   if (ret != 0)
     fprintf(stderr, "WARNING: fail to get device IDs\n");
 
@@ -140,10 +140,14 @@ void opencl_env_delete(opencl_env* thisone)
 }
 
 
-void opencl_test1d(array1d* src, array1d* res, char* source_file, unsigned int groups)
+void opencl_test1d(array1d* src,
+		   array1d* res,
+		   char* source_file,
+		   opencl_device_type device_type,
+		   unsigned int groups)
 {
   // Create OpenCL environment
-  opencl_env* env = opencl_env_new(source_file, "test1d");
+  opencl_env* env = opencl_env_new(source_file, "test1d", device_type);
   
   // Create a command queue
   cl_int ret;
@@ -189,11 +193,12 @@ void opencl_convolve_image(array3d* src,
 			   unsigned int dil_y,
 			   array2d* res,
 			   char* source_file,
+			   opencl_device_type device_type,
 			   unsigned int groups_x,
 			   unsigned int groups_y)
 {
   // Create OpenCL environment
-  opencl_env* env = opencl_env_new(source_file, "convolve_image");
+  opencl_env* env = opencl_env_new(source_file, "convolve_image", device_type);
 
   // Create memory buffers on the device
   cl_int ret;
@@ -270,6 +275,7 @@ void opencl_multi_convolve_image(array3d* src,
 				 unsigned int dil_y,
 				 array3d* res,
 				 char* source_file,
+				 opencl_device_type device_type,
 				 unsigned int groups_x,
 				 unsigned int groups_y)
 {  
@@ -278,7 +284,7 @@ void opencl_multi_convolve_image(array3d* src,
   unsigned int t;
   FLOAT* bias;
 
-  opencl_env* env = opencl_env_new(source_file, "convolve_image");
+  opencl_env* env = opencl_env_new(source_file, "convolve_image", device_type);
   FLOAT* kernel_data = (FLOAT*)malloc(kernels->dimx * kernels->dimy * kernels->dimz * sizeof(FLOAT));
   FLOAT* res2d_data = (FLOAT*)malloc(res->dimx * res->dimy * sizeof(FLOAT));
 
