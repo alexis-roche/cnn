@@ -110,7 +110,7 @@ opencl_env* opencl_env_new(char* source_file, char* kernel_name, opencl_device_t
   if (ret != 0) 
     fprintf(stderr, "WARNING: fail to create context\n");
 
-  cl_program program = clCreateProgramWithSource(thisone->context, 1, (const char **)&source_code, (const size_t *)&source_size, &ret);
+  cl_program program = clCreateProgramWithSource(thisone->context, 1, (const char**)&source_code, (const size_t*)&source_size, &ret);
   if (ret != 0)
     fprintf(stderr, "WARNING: fail to create program\n");
  
@@ -282,11 +282,10 @@ void opencl_multi_convolve_image(array3d* src,
   array3d kernel;
   array2d res2d;
   unsigned int t;
-  FLOAT* bias;
-
   opencl_env* env = opencl_env_new(source_file, "convolve_image", device_type);
   FLOAT* kernel_data = (FLOAT*)malloc(kernels->dimx * kernels->dimy * kernels->dimz * sizeof(FLOAT));
   FLOAT* res2d_data = (FLOAT*)malloc(res->dimx * res->dimy * sizeof(FLOAT));
+  FLOAT* bias = biases->data;
 
   // Create memory buffers on the device
   cl_int ret;
@@ -302,7 +301,7 @@ void opencl_multi_convolve_image(array3d* src,
   cl_mem dil_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, 2 * sizeof(unsigned int), NULL, &ret);
   cl_mem res2d_data_dev = clCreateBuffer(env->context, CL_MEM_READ_WRITE, res2d_byte_size, NULL, &ret);
   cl_mem res2d_off_dev = clCreateBuffer(env->context, CL_MEM_READ_ONLY, 2 * sizeof(unsigned int), NULL, &ret);
-  
+
   // Copy the input vectors to their respective memory buffers
   unsigned int src_dim[3] = {src->dimx, src->dimy, src->dimz};
   unsigned int src_off[3] = {src->offx, src->offy, src->offz};
@@ -331,17 +330,17 @@ void opencl_multi_convolve_image(array3d* src,
   ret = clSetKernelArg(env->kernel, 4, sizeof(cl_mem), (void*)&kernel_dim_dev);
   ret = clSetKernelArg(env->kernel, 5, sizeof(cl_mem), (void*)&kernel_off_dev);
   ret = clSetKernelArg(env->kernel, 6, sizeof(cl_mem), (void*)&dil_dev);
-  ret = clSetKernelArg(env->kernel, 7, sizeof(FLOAT), (void*)&bias);
+  //  ret = clSetKernelArg(env->kernel, 7, sizeof(FLOAT), (void*)bias);
   ret = clSetKernelArg(env->kernel, 8, sizeof(cl_mem), (void*)&res2d_data_dev);
   ret = clSetKernelArg(env->kernel, 9, sizeof(cl_mem), (void*)&res2d_off_dev);
 
   // Loop over sequence of kernels and output array
-  bias = biases->data;
   for(t=0; t<kernels->dimt; t++) {
     kernel = slice3d(kernels, t, kernel_data, 0);
     ret = clEnqueueWriteBuffer(command_queue, kernel_data_dev, CL_TRUE, 0, kernel_byte_size, kernel_data, 0, NULL, NULL);
     res2d = slice2d(res, t, res2d_data, 0);
-    ret = clEnqueueWriteBuffer(command_queue, res2d_data_dev, CL_TRUE, 0, res2d_byte_size, res2d_data, 0, NULL, NULL);    
+    ret = clEnqueueWriteBuffer(command_queue, res2d_data_dev, CL_TRUE, 0, res2d_byte_size, res2d_data, 0, NULL, NULL);
+    ret = clSetKernelArg(env->kernel, 7, sizeof(FLOAT), (void*)bias);
     ret = clEnqueueNDRangeKernel(command_queue, env->kernel, 2, NULL, (const size_t*)&global_item_size, (const size_t*)&local_item_size, 0, NULL, NULL);
     ret = clEnqueueReadBuffer(command_queue, res2d_data_dev, CL_TRUE, 0, res2d_byte_size, res2d_data, 0, NULL, NULL);
     res2d = slice2d(res, t, res2d_data, 1);

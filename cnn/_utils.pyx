@@ -256,7 +256,7 @@ def _get_opencl_device_info(opencl_device_type device_type):
     out = {'device_type': Device_type,
            'max_work_group_size': info[0].max_work_group_size,
            'max_work_item_dimensions': info[0].max_work_item_dimensions,
-           'mark_work_item_sizes': Aux}
+           'max_work_item_sizes': Aux}
 
     opencl_device_info_delete(info)
     return out
