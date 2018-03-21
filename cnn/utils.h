@@ -7,7 +7,11 @@ extern "C" {
 
 #include <stdlib.h>
 
+#ifdef FLOAT64
+  typedef double FLOAT;
+#else
   typedef float FLOAT;
+#endif
   
   typedef struct {
     size_t dim;

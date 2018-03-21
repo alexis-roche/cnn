@@ -1,5 +1,6 @@
 from .image_classifier import *
-from ._utils import (_convolve_image,
+from ._utils import (FLOAT_DTYPE,
+                     _convolve_image,
                      _multi_convolve_image,
                      _relu_max_pool_image,
                      _get_opencl_device_info,
