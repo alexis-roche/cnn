@@ -261,6 +261,11 @@ def _get_opencl_device_info(opencl_device_type device_type):
     opencl_device_info_delete(info)
     return out
 
+
+def get_opencl_source_file():
+    return os.path.join(os.path.split(__file__)[0], '_opencl_utils.cl')
+
+
 def _opencl_test1d(np.ndarray[FLOAT, ndim=1] Src not None,
                    opencl_device_type device_type,
                    unsigned int groups):
@@ -269,7 +274,7 @@ def _opencl_test1d(np.ndarray[FLOAT, ndim=1] Src not None,
     Res = np.zeros(len(Src), dtype=Src.dtype)
     to_array1d(Src, &src)
     to_array1d(Res, &res)
-    source_file = os.path.join(os.path.split(__file__)[0], 'test1d.cl')
+    source_file = get_opencl_source_file()
     opencl_test1d(&src, &res, <char*>source_file, device_type, groups)
     return Res
 
@@ -292,7 +297,7 @@ def _opencl_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
     to_array3d(Src, &src)
     to_array3d(Kernel, &kernel)
     to_array2d(Res, &res)
-    source_file = os.path.join(os.path.split(__file__)[0], 'convolve_image.cl')
+    source_file = get_opencl_source_file()
     opencl_convolve_image(&src, &kernel, bias, dil_x, dil_y, &res, <char*>source_file, device_type, groups_x, groups_y) 
     return Res
 
@@ -317,7 +322,7 @@ def _opencl_multi_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
     to_array4d(Kernels, &kernels)
     to_array1d(Biases, &biases)
     to_array3d(Res, &res)
-    source_file = os.path.join(os.path.split(__file__)[0], 'convolve_image.cl')
+    source_file = get_opencl_source_file()
     opencl_multi_convolve_image(&src, &kernels, &biases, dil_x, dil_y, &res, <char*>source_file, device_type, groups_x, groups_y) 
     return Res
 
