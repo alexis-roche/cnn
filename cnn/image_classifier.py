@@ -1,11 +1,11 @@
-import os
+import sys 
 import glob
 import gc
 
 import numpy as np
 import keras
 
-from ._utils import FLOAT_DTYPE
+from . import FLOAT_DTYPE
 
 
 def dim_after_convolution(dim, kernel_size):
@@ -13,8 +13,15 @@ def dim_after_convolution(dim, kernel_size):
 
 
 def dim_after_pooling(dim, pool_size):
+    return np.ceil(dim_after_convolution(dim, pool_size) / pool_size).astype(np.uint16)
+
+
+# Backward Python compatibility
+def _old_dim_after_pooling(dim, pool_size):
     return np.ceil(dim_after_convolution(dim, pool_size) / float(pool_size)).astype(np.uint16)
-    
+
+if int(sys.version[0]) < 3:
+    dim_after_pooling = _old_dim_after_pooling
 
 
 def configure_cnn(nclasses,
@@ -209,12 +216,12 @@ class ImageClassifier(object):
     def _get_fcnn_shift(self, step=None):
         if step is None:
             step = len(self._conv_filters)
-        s = (self._kernel_size - 1) / 2 + (self._pool_size - 1) / 2
+        s = (self._kernel_size - 1) // 2 + (self._pool_size - 1) // 2
         if self._pool_size > 1:
-            s *= (self._pool_size ** (step + 1) - 1) / (self._pool_size - 1)
+            s *= (self._pool_size ** (step + 1) - 1) // (self._pool_size - 1)
         else:
             s *= len(self._conv_filters)
-        return np.array(self._image_size) / 2 - s
+        return np.array(self._image_size) // 2 - s
     
     image_size = property(_get_image_size)
     nclasses = property(_get_nclasses)

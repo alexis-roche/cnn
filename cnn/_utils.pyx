@@ -263,7 +263,7 @@ def _get_opencl_device_info(opencl_device_type device_type):
 
 
 def get_opencl_source_file():
-    return os.path.join(os.path.split(__file__)[0], '_opencl_utils.cl')
+    return os.path.join(os.path.split(__file__)[0], '_opencl_utils.cl').encode()
 
 
 def _opencl_test1d(np.ndarray[FLOAT, ndim=1] Src not None,

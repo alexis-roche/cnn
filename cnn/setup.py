@@ -41,7 +41,7 @@ def configuration(parent_package='',top_path=None):
     # Add OpenCL kernel source code for runtime compilation (with
     # conversion to double format if requested)
     double_fmt = False
-    if opts.has_key('extra_compile_args'):
+    if 'extra_compile_args' in opts:
         if max(['-DFLOAT64' in a for a in opts['extra_compile_args']]):
             double_fmt = True
     if double_fmt:
