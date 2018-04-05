@@ -69,6 +69,19 @@ extern "C" {
 					  opencl_device_type device_type,
 					  unsigned int groups_x,
 					  unsigned int groups_y);
+
+  extern void opencl_relu_max_pool_image(array3d* src,
+					 unsigned int size_x,
+					 unsigned int size_y,
+					 unsigned int dil_x,
+					 unsigned int dil_y,
+					 array3d* res,
+					 char* source_file,
+					 opencl_device_type device_type,
+					 unsigned int groups_x,
+					 unsigned int groups_y,
+					 unsigned int groups_z);
+  
   
 #ifdef __cplusplus
 }

@@ -1,23 +1,30 @@
-* Fix GPU convolution
-* Non-contiguous buffer for multi-convolution
-* GPU multi convolution
-
-* Make OpenCL use FLOAT typedef rather than hard-coded float
-* Pass compilation options nicely
-* Pass CPU/GPU as argument to OpenCL.
-
-Checks in Cython module: array dimension and contiguity (for GPU routines).
-
-* DEBUG: looks like the GPU implementation sometimes screws up completely... why???
-Error checking
+Checks in Cython module: array dimension and contiguity (OpenCL
+implementation requires contiguous arrays, not necessarily in C-order).
 
 Implement GPU max pooling
+
 Border effects
+
+Move opencl source code into a subdirectory like a standard data directory.
 
 BUGS
 
-The convolution does not work with GPU in float64 format. This is very
-weird, it looks like the multiplication between kernel and src data
-returns zero at fixed 2d locations.
+* The convolution does not work with GPU in float64 format. This is
+very weird, it looks like the multiplication between kernel and src
+data returns zero at fixed 2d locations.
 
+
+DONE
+
+* Fix GPU convolution
+
+* Non-contiguous buffer for multi-convolution
+
+* GPU multi convolution
+
+* Make OpenCL use FLOAT typedef rather than hard-coded float
+
+* Pass compilation options nicely
+
+* Pass CPU/GPU as argument to OpenCL.
 

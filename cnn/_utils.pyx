@@ -100,7 +100,17 @@ cdef extern from "opencl_utils.h":
                                      opencl_device_type device_type,
 				     unsigned int groups_x,
                                      unsigned int groups_y)
-
+    void opencl_relu_max_pool_image(array3d* src,
+				    unsigned int size_x,
+				    unsigned int size_y,
+				    unsigned int dil_x,
+				    unsigned int dil_y,
+				    array3d* res,
+				    char* source_file,
+				    opencl_device_type device_type,
+				    unsigned int groups_x,
+				    unsigned int groups_y,
+				    unsigned int groups_z)
     
     
 # Initialize numpy
@@ -262,8 +272,12 @@ def _get_opencl_device_info(opencl_device_type device_type):
     return out
 
 
-def get_opencl_source_file():
-    return os.path.join(os.path.split(__file__)[0], '_opencl_utils.cl').encode()
+def get_opencl_source_file(name):
+    if FLOAT_DTYPE == 'float64':
+        fname = name + '_d' + '.cl'
+    else:
+        fname = name + '.cl'
+    return os.path.join(os.path.split(__file__)[0], fname).encode()
 
 
 def _opencl_test1d(np.ndarray[FLOAT, ndim=1] Src not None,
@@ -274,7 +288,7 @@ def _opencl_test1d(np.ndarray[FLOAT, ndim=1] Src not None,
     Res = np.zeros(len(Src), dtype=Src.dtype)
     to_array1d(Src, &src)
     to_array1d(Res, &res)
-    source_file = get_opencl_source_file()
+    source_file = get_opencl_source_file('test1d')
     opencl_test1d(&src, &res, <char*>source_file, device_type, groups)
     return Res
 
@@ -297,7 +311,7 @@ def _opencl_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
     to_array3d(Src, &src)
     to_array3d(Kernel, &kernel)
     to_array2d(Res, &res)
-    source_file = get_opencl_source_file()
+    source_file = get_opencl_source_file('convolve_image')
     opencl_convolve_image(&src, &kernel, bias, dil_x, dil_y, &res, <char*>source_file, device_type, groups_x, groups_y) 
     return Res
 
@@ -322,8 +336,31 @@ def _opencl_multi_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
     to_array4d(Kernels, &kernels)
     to_array1d(Biases, &biases)
     to_array3d(Res, &res)
-    source_file = get_opencl_source_file()
-    opencl_multi_convolve_image(&src, &kernels, &biases, dil_x, dil_y, &res, <char*>source_file, device_type, groups_x, groups_y) 
+    source_file = get_opencl_source_file('convolve_image')
+    opencl_multi_convolve_image(&src, &kernels, &biases, dil_x, dil_y, &res,
+                                <char*>source_file, device_type, groups_x, groups_y) 
     return Res
 
 
+def _opencl_relu_max_pool_image(np.ndarray[FLOAT, ndim=3] Src not None,
+                                unsigned int size_x,
+                                unsigned int size_y,
+                                unsigned int dil_x,
+                                unsigned int dil_y,
+                                opencl_device_type device_type,
+                                unsigned int groups_x,
+                                unsigned int groups_y,
+                                unsigned int groups_z):
+
+    cdef array3d src
+    cdef array3d res
+    #
+    # check dimensions!!!
+    #
+    Res = np.zeros([Src.shape[0], Src.shape[1], Src.shape[2]], dtype=Src.dtype)
+    to_array3d(Src, &src)
+    to_array3d(Res, &res)
+    source_file = get_opencl_source_file('relu_max_pool_image')
+    opencl_relu_max_pool_image(&src, size_x, size_y, dil_x, dil_y, &res,
+                               <char*>source_file, device_type, groups_x, groups_y, groups_z)
+    return Res

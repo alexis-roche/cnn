@@ -248,10 +248,10 @@ static FLOAT _relu_max_pool_image(unsigned int xc,
   FLOAT out = 0, tmp;
   unsigned int x, y, z;
   size_t pos_x, pos_y, pos_xy;
-  FLOAT *buf;
   size_t inc_x = dil_x * src->offx;
   size_t inc_y = dil_y * src->offy;
   int alpha, beta;
+  FLOAT *buf;
   
   /* Return zero if kernel and source do not fully overlap */
   alpha = xc - dil_x * half_dimension(size_x);
