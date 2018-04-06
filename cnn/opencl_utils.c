@@ -299,7 +299,7 @@ void opencl_multi_convolve_image(array3d* src_,
 				 array1d* biases,
 				 unsigned int dil_x,
 				 unsigned int dil_y,
-				 array3d* res_,
+				 array3d* res,
 				 char* source_file,
 				 opencl_device_type device_type,
 				 unsigned int groups_x,
@@ -311,7 +311,6 @@ void opencl_multi_convolve_image(array3d* src_,
   /* Host variables */
   array3d* src = array3d_new_contiguous_from(src_);
   array3d* kernel = array3d_new(kernels->dimx, kernels->dimy, kernels->dimz);
-  array3d* res = array3d_new_contiguous_from(res_);
   array2d* res2d = array2d_new(res->dimx, res->dimy);
   FLOAT* bias = biases->data;
   unsigned int t;
@@ -377,16 +376,11 @@ void opencl_multi_convolve_image(array3d* src_,
     slice2d(res, res2d, t, 1);
     bias += biases->off;
   }
-
-  /* Copy the result back to the original array if non-contiguous */
-  if (res->owner)
-    copy3d(res_, res, 1);
   
   /* Clean up */
   array3d_delete(src);
   array3d_delete(kernel);
   array2d_delete(res2d);
-  array3d_delete(res);
   ret = clFlush(command_queue);
   ret = clFinish(command_queue);
   ret = clReleaseMemObject(src_data_q);
