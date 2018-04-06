@@ -1,4 +1,4 @@
-from ._utils import (FLOAT_DTYPE,
+from ._utils import (_SIZEOF_FLOAT,
                      _convolve_image,
                      _multi_convolve_image,
                      _relu_max_pool_image,
@@ -7,6 +7,8 @@ from ._utils import (FLOAT_DTYPE,
                      _opencl_convolve_image,
                      _opencl_multi_convolve_image,
                      _opencl_relu_max_pool_image)
+
+FLOAT_DTYPE = 'float%s' % (8 * _SIZEOF_FLOAT)
 
 from .image_classifier import *
 

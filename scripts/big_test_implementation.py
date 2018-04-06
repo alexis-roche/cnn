@@ -1,10 +1,8 @@
+import sys
 import numpy as np
-import vii
 import time
-import scipy.ndimage as nd
-import keras
-from keras.backend.tensorflow_backend import _to_tensor, get_value
 
+import vii
 import cnn
 
 
@@ -30,14 +28,27 @@ def probe_time(func):
     return wrapper
 
 
+
+
+@probe_time
+def cpu_multi_convolve_image(*args):
+    return cnn._multi_convolve_image(*args)
+
+
+@probe_time
+def cpu_relu_max_pool_image(*args):
+    return cnn._relu_max_pool_image(*args)
+
+
 @probe_time
 def opencl_multi_convolve_image(*args):
     return cnn._opencl_multi_convolve_image(*args)
 
 
 @probe_time
-def relu_max_pool_image(*args):
-    return cnn._relu_max_pool_image(*args)
+def opencl_relu_max_pool_image(*args):
+    return cnn._opencl_relu_max_pool_image(*args)
+
 
 
 
@@ -45,6 +56,26 @@ def relu_max_pool_image(*args):
 
 img = vii.load_image('/home/alexis/artisan_data/pizza/item1/con5/pic01.png')
 classif = cnn.load_image_classifier('feb2.h5')  # 'mar6.h5'
+
+OPENCL = False
+DEVICE = 0
+GROUPS = 25, 20, 1
+if len(sys.argv) > 1:
+    OPENCL = sys.argv[1] == 'opencl'
+
+
+def multi_convolve_image(data, kernel, bias, dil_x, dil_y):
+    if OPENCL:
+        return opencl_multi_convolve_image(data, kernel, bias, dil_x, dil_y, DEVICE, *(GROUPS[0:2]))
+    else:
+        return cpu_multi_convolve_image(data, kernel, bias, dil_x, dil_y)
+
+
+def relu_max_pool_image(data, size_x, size_y, dil_x, dil_y):
+    if OPENCL:
+        return opencl_relu_max_pool_image(data, size_x, size_y, dil_x, dil_y, DEVICE, *GROUPS)
+    else:
+        return cpu_relu_max_pool_image(data, size_x, size_y, dil_x, dil_y)
 
 ###########################################################################
     
@@ -54,25 +85,25 @@ x = np.random.randint(img.dims[0] - classif.image_size[0] + 1)
 y = np.random.randint(img.dims[1] - classif.image_size[1] + 1)
 
 data = img.get_data().astype(cnn.FLOAT_DTYPE)[x:(x + classif.image_size[0]), y:(y + classif.image_size[1])] / 255
-
 gold = classif.run(data)
 
-zob = data
+flow = data
 for i in range(len(classif.conv_filters)):
     kernel, bias = classif.get_weights(i)
-    zob = cnn._multi_convolve_image(zob, kernel, bias, 1, 1)[1:-1, 1:-1, :]
-    zob = subsample(cnn._relu_max_pool_image(zob, classif.pool_size, classif.pool_size, 1, 1), 2)
-zob = zob.flatten()
+    flow = multi_convolve_image(flow, kernel, bias, 1, 1)[1:-1, 1:-1, :]
+    flow = subsample(relu_max_pool_image(flow, classif.pool_size, classif.pool_size, 1, 1), 2)
+flow = flow.flatten()
 
 for i in range(len(classif.conv_filters), len(classif.layers)):
     kernel, bias = classif.get_weights(i)
-    zob = np.sum(kernel * np.expand_dims(zob, 1), 0) + bias
+    flow = np.sum(kernel * np.expand_dims(flow, 1), 0) + bias
     if i < (len(classif.layers) - 1):
-        zob = np.maximum(zob, 0)
+        flow = np.maximum(flow, 0)
 
-silver = softmax(zob)
+silver = softmax(flow)
 
 print('error = %f' % np.max(np.abs(gold-silver))) 
+
 
 ############################################################################
 
@@ -91,7 +122,7 @@ for i in range(len(classif.layers)):
     print('Processing %d-th convolution layer' % (i + 1))
     kernel, bias = classif.get_weights(i, fully_convolutional=True)
     print('Kernel shape: %d, %d, %d, %d' % kernel.shape)
-    data = opencl_multi_convolve_image(data, kernel, bias, dil, dil, 0, 25, 20)
+    data = multi_convolve_image(data, kernel, bias, dil, dil)
     # Reset pool size and dilation after convolution with first dense layer
     if i == len(classif.conv_filters):
         pool_size = dil = 1
@@ -108,9 +139,8 @@ silver_mask = softmax(data)[..., 1]
 tmp = silver_mask[x + classif.image_size[0] // 2, y + classif.image_size[1] // 2] - gold[1]
 print ('FCNN error = %f' % tmp)
 
-gold_mask = np.load('gold_fcnn.npy')
+#gold_mask = np.load('gold_fcnn.npy')
 
 #silver = np.zeros(mask.shape, dtype=cnn.FLOAT_DTYPE)
 #silver[10:, 10:] = mask[:-10, :-10]
-
 

@@ -16,14 +16,16 @@ cdef extern from "utils.h":
         size_t dim
         size_t off
         FLOAT* data
-
+        unsigned char owner
+        
     ctypedef struct array2d:
         size_t dimx
         size_t dimy
         size_t offx
         size_t offy
         FLOAT* data
-
+        unsigned char owner
+        
     ctypedef struct array3d:
         size_t dimx
         size_t dimy
@@ -32,7 +34,8 @@ cdef extern from "utils.h":
         size_t offy
         size_t offz
         FLOAT* data
-
+        unsigned char owner
+        
     ctypedef struct array4d:
         size_t dimx
         size_t dimy
@@ -43,10 +46,8 @@ cdef extern from "utils.h":
         size_t offz
         size_t offt
         FLOAT* data
+        unsigned char owner
 
-    array3d slice3d(array4d* a4d, unsigned int t, FLOAT* data, unsigned char from_buffer)
-    array2d slice2d(array3d* a3d, unsigned int z, FLOAT* data, unsigned char from_buffer)
-    array1d slice1d(array2d* a2d, unsigned int y, FLOAT* data, unsigned char from_buffer)
     void convolve_image(array3d* src, array3d* kernel, FLOAT bias,
                         unsigned int dil_x, unsigned int dil_y,
                         array2d* res)
@@ -117,31 +118,34 @@ cdef extern from "opencl_utils.h":
 np.import_array()
 
 # Global variables
-FLOAT_DTYPE = 'float%s' % (8 * sizeof(FLOAT))
+_SIZEOF_FLOAT = sizeof(FLOAT)
 
 # Functions
 cdef to_array1d(np.ndarray A, array1d* a_ptr):
     a_ptr[0].dim = A.shape[0]
-    a_ptr[0].off = A.strides[0] / sizeof(FLOAT)
+    a_ptr[0].off = A.strides[0] / _SIZEOF_FLOAT
     a_ptr[0].data = <FLOAT*>A.data
+    a_ptr[0].owner = 0
 
     
 cdef to_array2d(np.ndarray A, array2d* a_ptr):
     a_ptr[0].dimx = A.shape[0]
     a_ptr[0].dimy = A.shape[1]
-    a_ptr[0].offx = A.strides[0] / sizeof(FLOAT)
-    a_ptr[0].offy = A.strides[1] / sizeof(FLOAT)
+    a_ptr[0].offx = A.strides[0] / _SIZEOF_FLOAT
+    a_ptr[0].offy = A.strides[1] / _SIZEOF_FLOAT
     a_ptr[0].data = <FLOAT*>A.data
+    a_ptr[0].owner = 0
 
     
 cdef to_array3d(np.ndarray A, array3d* a_ptr):
     a_ptr[0].dimx = A.shape[0]
     a_ptr[0].dimy = A.shape[1]
     a_ptr[0].dimz = A.shape[2]
-    a_ptr[0].offx = A.strides[0] / sizeof(FLOAT)
-    a_ptr[0].offy = A.strides[1] / sizeof(FLOAT)
-    a_ptr[0].offz = A.strides[2] / sizeof(FLOAT)
+    a_ptr[0].offx = A.strides[0] / _SIZEOF_FLOAT
+    a_ptr[0].offy = A.strides[1] / _SIZEOF_FLOAT
+    a_ptr[0].offz = A.strides[2] / _SIZEOF_FLOAT
     a_ptr[0].data = <FLOAT*>A.data
+    a_ptr[0].owner = 0
 
     
 cdef to_array4d(np.ndarray A, array4d* a_ptr):
@@ -149,43 +153,13 @@ cdef to_array4d(np.ndarray A, array4d* a_ptr):
     a_ptr[0].dimy = A.shape[1]
     a_ptr[0].dimz = A.shape[2]
     a_ptr[0].dimt = A.shape[3]
-    a_ptr[0].offx = A.strides[0] / sizeof(FLOAT)
-    a_ptr[0].offy = A.strides[1] / sizeof(FLOAT)
-    a_ptr[0].offz = A.strides[2] / sizeof(FLOAT)
-    a_ptr[0].offt = A.strides[3] / sizeof(FLOAT)
+    a_ptr[0].offx = A.strides[0] / _SIZEOF_FLOAT
+    a_ptr[0].offy = A.strides[1] / _SIZEOF_FLOAT
+    a_ptr[0].offz = A.strides[2] / _SIZEOF_FLOAT
+    a_ptr[0].offt = A.strides[3] / _SIZEOF_FLOAT
     a_ptr[0].data = <FLOAT*>A.data
-
-
-def _slice3d(np.ndarray[FLOAT, ndim=4] Src not None,
-             unsigned int t):
-    cdef array4d src
-    cdef array3d res
-    Res = np.zeros([Src.shape[0], Src.shape[1], Src.shape[2]], dtype=Src.dtype)
-    to_array4d(Src, &src)
-    to_array3d(Res, &res)
-    res = slice3d(&src, t, res.data, 0) 
-    return Res
-
-def _slice2d(np.ndarray[FLOAT, ndim=3] Src not None,
-             unsigned int z):
-    cdef array3d src
-    cdef array2d res
-    Res = np.zeros([Src.shape[0], Src.shape[1]], dtype=Src.dtype)
-    to_array3d(Src, &src)
-    to_array2d(Res, &res)
-    res = slice2d(&src, z, res.data, 0) 
-    return Res
-
-def _slice1d(np.ndarray[FLOAT, ndim=2] Src not None,
-             unsigned int y):
-    cdef array2d src
-    cdef array1d res
-    Res = np.zeros(Src.shape[0], dtype=Src.dtype)
-    to_array2d(Src, &src)
-    to_array1d(Res, &res)
-    res = slice1d(&src, y, res.data, 0) 
-    return Res
-
+    a_ptr[0].owner = 0
+    
 
 def _convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
                     np.ndarray[FLOAT, ndim=3] Kernel not None,
@@ -273,7 +247,7 @@ def _get_opencl_device_info(opencl_device_type device_type):
 
 
 def get_opencl_source_file(name):
-    if FLOAT_DTYPE == 'float64':
+    if _SIZEOF_FLOAT == 8:
         fname = name + '_d' + '.cl'
     else:
         fname = name + '.cl'

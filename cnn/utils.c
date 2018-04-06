@@ -1,29 +1,298 @@
 #include "utils.h"
 
 
-array3d slice3d(array4d* a4d, unsigned int t, FLOAT* data, unsigned char from_buffer)
+array1d* array1d_new(unsigned int dim)
 {
-  array3d a3d;
+  array1d* thisone = malloc(sizeof(array1d));
+  thisone->dim = dim;
+  thisone->off = 1;
+  thisone->data = (FLOAT*)calloc(dim, sizeof(FLOAT));
+  thisone->owner = 1;
+  return thisone;
+}
+
+void array1d_delete(array1d* thisone)
+{
+  if ((thisone->owner) && (thisone->data != NULL))
+    free(thisone->data);
+  free(thisone);
+}
+
+array1d* array1d_new_contiguous_from(array1d* src)
+{
+  array1d* thisone = malloc(sizeof(array1d));
+  thisone->dim = src->dim;
+
+  if (src->off == 1) {
+    thisone->off = 1;
+    thisone->data = src->data;
+    thisone->owner = 0;
+  }
+  else {
+    thisone->off = 1;
+    thisone->data = (FLOAT*)calloc(src->dim, sizeof(FLOAT));
+    thisone->owner = 1;
+    copy1d(src, thisone, 0); 
+  }
+  
+  return thisone;
+}
+
+
+array2d* array2d_new(unsigned int dimx, unsigned int dimy)
+{
+  array2d* thisone = malloc(sizeof(array2d));
+  thisone->dimx = dimx;
+  thisone->dimy = dimy;
+  thisone->offy = 1;
+  thisone->offx = dimy;
+  thisone->data = (FLOAT*)calloc(dimx * dimy, sizeof(FLOAT));
+  thisone->owner = 1;
+  return thisone;
+}
+
+void array2d_delete(array2d* thisone)
+{
+  if ((thisone->owner) && (thisone->data != NULL))
+    free(thisone->data);
+  free(thisone);
+}
+
+
+array2d* array2d_new_contiguous_from(array2d* src)
+{
+  array2d* thisone = malloc(sizeof(array2d));
+  thisone->dimx = src->dimx;
+  thisone->dimy = src->dimy;
+
+  size_t a = src->dimx * src->dimy - 1;
+  size_t b = src->offx * (src->dimx - 1) + src->offy * (src->dimy - 1);
+
+  if (a == b) {
+    thisone->offy = src->offy;
+    thisone->offx = src->offx;
+    thisone->data = src->data;
+    thisone->owner = 0;
+  }
+  else {
+    thisone->offy = 1;
+    thisone->offx = src->dimy;
+    thisone->data = (FLOAT*)calloc(src->dimx * src->dimy, sizeof(FLOAT));
+    thisone->owner = 1;
+    copy2d(src, thisone, 0);
+  }
+  
+  return thisone;
+}
+
+
+array3d* array3d_new(unsigned int dimx, unsigned int dimy, unsigned int dimz)
+{
+  array3d* thisone = malloc(sizeof(array3d));
+  thisone->dimx = dimx;
+  thisone->dimy = dimy;
+  thisone->dimz = dimz;
+  thisone->offz = 1;
+  thisone->offy = dimz;
+  thisone->offx = dimy * thisone->offy;
+  thisone->data = (FLOAT*)calloc(dimx * dimy * dimz, sizeof(FLOAT));
+  thisone->owner = 1;
+  return thisone;
+}
+
+void array3d_delete(array3d* thisone)
+{
+  if ((thisone->owner) && (thisone->data != NULL))
+    free(thisone->data);
+  free(thisone);
+}
+
+array3d* array3d_new_contiguous_from(array3d* src)
+{
+  array3d* thisone = malloc(sizeof(array3d));
+  thisone->dimx = src->dimx;
+  thisone->dimy = src->dimy;
+  thisone->dimz = src->dimz;
+
+  size_t a = src->dimx * src->dimy * src->dimz - 1;
+  size_t b = src->offx * (src->dimx - 1) + src->offy * (src->dimy - 1) + src->offz * (src->dimz - 1);
+
+  if (a == b) {
+    thisone->offz = src->offz;
+    thisone->offy = src->offy;
+    thisone->offx = src->offx;
+    thisone->data = src->data;
+    thisone->owner = 0;
+  }
+  else {
+    thisone->offz = 1;
+    thisone->offy = src->dimz;
+    thisone->offx = src->dimy * thisone->offy;
+    thisone->data = (FLOAT*)calloc(src->dimx * src->dimy * src->dimz, sizeof(FLOAT));
+    thisone->owner = 1;
+    copy3d(src, thisone, 0);
+  }
+  
+  return thisone;
+}
+
+
+array4d* array4d_new(unsigned int dimx, unsigned int dimy, unsigned int dimz, unsigned int dimt)
+{
+  array4d* thisone = malloc(sizeof(array4d));
+  thisone->dimx = dimx;
+  thisone->dimy = dimy;
+  thisone->dimz = dimz;
+  thisone->dimt = dimt;
+  thisone->offt = 1;
+  thisone->offz = dimt;
+  thisone->offy = dimz * thisone->offt;
+  thisone->offx = dimy * thisone->offy;
+  thisone->data = (FLOAT*)calloc(dimx * dimy * dimz * dimt, sizeof(FLOAT));
+  thisone->owner = 1;
+  return thisone;
+}
+
+void array4d_delete(array4d* thisone)
+{
+  if ((thisone->owner) && (thisone->data != NULL))
+    free(thisone->data);
+  free(thisone);
+}
+
+
+array4d* array4d_new_contiguous_from(array4d* src)
+{
+  array4d* thisone = malloc(sizeof(array4d));
+  thisone->dimx = src->dimx;
+  thisone->dimy = src->dimy;
+  thisone->dimz = src->dimz;
+  thisone->dimt = src->dimt;
+
+  size_t a = src->dimx * src->dimy * src->dimz * src->dimt - 1;
+  size_t b = src->offx * (src->dimx - 1) + src->offy * (src->dimy - 1) + src->offz * (src->dimz - 1) + src->offt * (src->dimt - 1);
+
+  if (a == b) {
+    thisone->offt = src->offt;
+    thisone->offz = src->offz;
+    thisone->offy = src->offy;
+    thisone->offx = src->offx;
+    thisone->data = src->data;
+    thisone->owner = 0;
+  }
+  else {
+    thisone->offt = 1;
+    thisone->offz = src->dimt;
+    thisone->offy = src->dimz * thisone->offz;
+    thisone->offx = src->dimy * thisone->offy;
+    thisone->data = (FLOAT*)calloc(src->dimx * src->dimy * src->dimz * src->dimt, sizeof(FLOAT));
+    thisone->owner = 1;
+    copy4d(src, thisone, 0);
+  }
+
+  return thisone;
+}
+
+
+void copy1d(array1d* src, array1d* res, unsigned char to_left)
+{
+  FLOAT *buf = res->data, *buf_src = src->data;
+  unsigned int x;
+
+  if (res->off != 1)
+    return;
+  
+  for(x=0; x<src->dim; x++, buf++, buf_src+=src->off) {
+    if (to_left)
+      *buf_src = *buf;
+    else
+      *buf = *buf_src;
+  }
+}
+
+void copy2d(array2d* src, array2d* res, unsigned char to_left)
+{
+  FLOAT *buf = res->data, *buf_src;
+  unsigned int x, y;
+  size_t pos_x;
+
+  if (res->offy != 1)
+    return;
+
+  for(x=0, pos_x=0; x<src->dimx; x++, pos_x+=src->offx) {
+    buf_src = src->data + pos_x;
+    for(y=0; y<src->dimy; y++, buf++, buf_src+=src->offy) {
+      if (to_left)
+	*buf_src = *buf;
+      else
+	*buf = *buf_src;
+    }
+  }
+}
+
+
+void copy3d(array3d* src, array3d* res, unsigned char to_left)
+{
+  FLOAT *buf = res->data, *buf_src;
+  unsigned int x, y, z;
+  size_t pos_x, pos_xy;
+
+  if (res->offz != 1)
+    return;
+
+  for(x=0, pos_x=0; x<src->dimx; x++, pos_x+=src->offx) {
+    for(y=0, pos_xy=pos_x; y<src->dimy; y++, pos_xy+=src->offy) {	
+      buf_src = src->data + pos_xy;
+      for(z=0; z<src->dimz; z++, buf++, buf_src+=src->offz) {
+	if (to_left)
+	  *buf_src = *buf;
+	else
+	  *buf = *buf_src;
+      }
+    }
+  }
+}
+
+
+void copy4d(array4d* src, array4d* res, unsigned char to_left)
+{
+  FLOAT *buf = res->data, *buf_src;
+  unsigned int x, y, z, t;
+  size_t pos_x, pos_xy, pos_xyz;
+
+  if (res->offt != 1)
+    return;
+  
+  for(x=0, pos_x=0; x<src->dimx; x++, pos_x+=src->offx) {
+    for(y=0, pos_xy=pos_x; y<src->dimy; y++, pos_xy+=src->offy) {	
+      for(z=0, pos_xyz=pos_xy; z<src->dimz; z++, pos_xyz+=src->offz) {
+	buf_src = src->data + pos_xyz;
+	for(t=0; t<src->dimt; t++, buf++, buf_src+=src->offt) {
+	  if (to_left)
+	    *buf_src = *buf;
+	  else
+	    *buf = *buf_src;
+	}
+      }
+    }
+  }    
+}
+
+
+void slice3d(array4d* a4d, array3d* a3d, unsigned int t, unsigned char to_left)
+{
   FLOAT *buf_a3d, *buf_a4d;
   unsigned int x, y, z;
   size_t pos_x, pos_xy;
-  
-  a3d.dimx = a4d->dimx;
-  a3d.dimy = a4d->dimy;
-  a3d.dimz = a4d->dimz;
-  a3d.offx = a3d.dimy * a3d.dimz;
-  a3d.offy = a3d.dimz;
-  a3d.offz = 1; 
-  a3d.data = data;
-  
-  buf_a3d = data;
+    
+  buf_a3d = a3d->data;
   pos_x = t * a4d->offt;
-  for(x=0; x<a3d.dimx; x++) {
+  for(x=0; x<a3d->dimx; x++) {
     pos_xy = pos_x;
-    for(y=0; y<a3d.dimy; y++) {
+    for(y=0; y<a3d->dimy; y++) {
       buf_a4d = a4d->data + pos_xy;
-      for(z=0; z<a3d.dimz; z++) {
-	if (from_buffer)
+      for(z=0; z<a3d->dimz; z++) {
+	if (to_left)
 	  *buf_a4d = *buf_a3d;
 	else
 	  *buf_a3d = *buf_a4d;
@@ -34,28 +303,20 @@ array3d slice3d(array4d* a4d, unsigned int t, FLOAT* data, unsigned char from_bu
     }
     pos_x += a4d->offx;
   }
-  return a3d;
 }
 
-array2d slice2d(array3d* a3d, unsigned int z, FLOAT* data, unsigned char from_buffer)
+void slice2d(array3d* a3d, array2d* a2d, unsigned int z, unsigned char to_left)
 {
-  array2d a2d;
   FLOAT *buf_a2d, *buf_a3d;
   unsigned int x, y;
   size_t pos_x;
   
-  a2d.dimx = a3d->dimx;
-  a2d.dimy = a3d->dimy;
-  a2d.offx = a2d.dimy;
-  a2d.offy = 1;
-  a2d.data = data;
-  
-  buf_a2d = data;
+  buf_a2d = a2d->data;
   pos_x = z * a3d->offz;
-  for(x=0; x<a2d.dimx; x++) {
+  for(x=0; x<a2d->dimx; x++) {
       buf_a3d = a3d->data + pos_x;
-      for(y=0; y<a2d.dimy; y++) {
-	if (from_buffer)
+      for(y=0; y<a2d->dimy; y++) {
+	if (to_left)
 	  *buf_a3d = *buf_a2d;
 	else
 	  *buf_a2d = *buf_a3d;
@@ -64,31 +325,24 @@ array2d slice2d(array3d* a3d, unsigned int z, FLOAT* data, unsigned char from_bu
       }
       pos_x += a3d->offx;
   }
-  return a2d;
 }
 
 
-array1d slice1d(array2d* a2d, unsigned int y, FLOAT* data, unsigned char from_buffer)
+void slice1d(array2d* a2d, array1d* a1d, unsigned int y, unsigned char to_left)
 {
-  array1d a1d;
   FLOAT *buf_a1d, *buf_a2d;
   unsigned int x;
-  
-  a1d.dim = a2d->dimx;
-  a1d.off = 1;
-  a1d.data = data;
-  
-  buf_a1d = data;
+    
+  buf_a1d = a1d->data;
   buf_a2d = a2d->data + y * a2d->offy;
-  for(x=0; x<a1d.dim; x++) {
-    if (from_buffer)
+  for(x=0; x<a1d->dim; x++) {
+    if (to_left)
       *buf_a2d = *buf_a1d;
     else
       *buf_a1d = *buf_a2d;
     buf_a1d ++;
     buf_a2d += a2d->offx;
   }
-  return a1d;
 }
 
 
