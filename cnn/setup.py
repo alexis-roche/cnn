@@ -9,24 +9,20 @@ from numpy.distutils.system_info import system_info
 # /etc/OpenCL/vendors/
 
 
-def _double_encoding_version(fname):
+def _generate_double_encoding_version(fname):
     base, ext = os.path.splitext(fname)
-    out = base + '_d' + ext
-    f = open(os.path.join('cnn', out), 'w')
+    f = open(os.path.join('cnn', base + '_d' + ext), 'w')
     f.writelines((l.replace('float ', 'double ').replace('float*', 'double*') for l in open(os.path.join('cnn', fname))))
     f.close()
-    return out
 
 
-def add_opencl_files(config, files):
+def add_opencl_files(config, subdir, files):
     if isinstance(files, str):
         files = [files]
-    else:
-        files = list(files)
     for f in files:
-        config.add_data_files(f)
-        config.add_data_files(_double_encoding_version(f))
-
+        _generate_double_encoding_version(os.path.join(subdir, f))
+    config.add_data_dir(subdir)
+    
         
 def configuration(parent_package='',top_path=None):
     # Create package configuration
@@ -46,8 +42,8 @@ def configuration(parent_package='',top_path=None):
         opencl_link_args = ['-lOpenCL']
     config.add_extension('_utils', sources=['_utils.pyx', 'utils.c', 'opencl_utils.c'], **opts)
 
-    #Add OpenCL kernel files
-    add_opencl_files(config, ['test1d.cl', 'convolve_image.cl', 'relu_max_pool_image.cl'])
+    # Add OpenCL kernel files
+    add_opencl_files(config, 'opencl', ['test1d.cl', 'convolve_image.cl', 'relu_max_pool_image.cl'])
     
     return config
 

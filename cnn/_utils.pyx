@@ -251,7 +251,7 @@ def get_opencl_source_file(name):
         fname = name + '_d' + '.cl'
     else:
         fname = name + '.cl'
-    return os.path.join(os.path.split(__file__)[0], fname).encode()
+    return os.path.join(os.path.split(__file__)[0], 'opencl', fname).encode()
 
 
 def _opencl_test1d(np.ndarray[FLOAT, ndim=1] Src not None,

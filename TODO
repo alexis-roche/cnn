@@ -4,7 +4,6 @@ Implement GPU max pooling
 
 Border effects
 
-Move opencl source code into a subdirectory like a standard data directory.
 
 BUGS
 
@@ -28,3 +27,4 @@ requires contiguous arrays, not necessarily in C-order).
 
 * Pass CPU/GPU as argument to OpenCL.
 
+* Move opencl source code into a subdirectory like a standard data directory.
