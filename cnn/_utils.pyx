@@ -169,9 +169,6 @@ def _convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
     cdef array3d src
     cdef array3d kernel
     cdef array2d res
-    #
-    # check dimensions!!!
-    #
     Res = np.zeros([Src.shape[0], Src.shape[1]], dtype=Src.dtype)
     to_array3d(Src, &src)
     to_array3d(Kernel, &kernel)
@@ -189,9 +186,8 @@ def _multi_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
     cdef array4d kernels
     cdef array1d biases
     cdef array3d res
-    #
-    # check dimensions!!!
-    #
+    if Kernels.shape[3] != Biases.shape[0]:
+        raise ValueError('Inconsistent kernel and bias arrays')
     Res = np.zeros([Src.shape[0], Src.shape[1], Kernels.shape[3]], dtype=Src.dtype)
     to_array3d(Src, &src)
     to_array4d(Kernels, &kernels)
@@ -278,9 +274,6 @@ def _opencl_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
     cdef array3d src
     cdef array3d kernel
     cdef array2d res
-    #
-    # check dimensions!!!
-    #
     Res = np.zeros([Src.shape[0], Src.shape[1]], dtype=Src.dtype)
     to_array3d(Src, &src)
     to_array3d(Kernel, &kernel)
@@ -302,9 +295,8 @@ def _opencl_multi_convolve_image(np.ndarray[FLOAT, ndim=3] Src not None,
     cdef array4d kernels
     cdef array1d biases
     cdef array3d res
-    #
-    # check dimensions!!!
-    #
+    if Kernels.shape[3] != Biases.shape[0]:
+        raise ValueError('Inconsistent kernel and bias arrays')
     Res = np.zeros([Src.shape[0], Src.shape[1], Kernels.shape[3]], dtype=Src.dtype)
     to_array3d(Src, &src)
     to_array4d(Kernels, &kernels)
@@ -328,9 +320,6 @@ def _opencl_relu_max_pool_image(np.ndarray[FLOAT, ndim=3] Src not None,
 
     cdef array3d src
     cdef array3d res
-    #
-    # check dimensions!!!
-    #
     Res = np.zeros([Src.shape[0], Src.shape[1], Src.shape[2]], dtype=Src.dtype)
     to_array3d(Src, &src)
     to_array3d(Res, &res)

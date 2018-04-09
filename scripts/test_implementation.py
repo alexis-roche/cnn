@@ -91,7 +91,6 @@ jc_fc = data[301:348:2, 401:448:2, :]
 print('Error FCNN/CNN = %f' % np.max(np.abs(jc - jc_fc)))
 
 
-
 """
 # Flatten shit
 flat = model.layers[9]
