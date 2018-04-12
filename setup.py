@@ -20,13 +20,14 @@ def configuration(parent_package='', top_path=None):
 
 def setup_package(**extra_args):
     from numpy.distutils.core import setup
+    
     setup(configuration=configuration,
           name='cnn',
           version=version,
           description='CNN for image analysis',
           requires = ('numpy', 'keras'),
           **extra_args)
-    return
+
 
 if __name__ == '__main__':
     setup_package()

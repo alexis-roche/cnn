@@ -5,7 +5,15 @@ import gc
 import numpy as np
 import keras
 
-from . import FLOAT_DTYPE
+from ._utils import (FLOAT_DTYPE,
+                     _convolve_image,
+                     _multi_convolve_image,
+                     _relu_max_pool_image,
+                     _get_opencl_device_info,
+                     _opencl_test1d,
+                     _opencl_convolve_image,
+                     _opencl_multi_convolve_image,
+                     _opencl_relu_max_pool_image)
 
 
 def dim_after_convolution(dim, kernel_size):
@@ -17,13 +25,13 @@ def dim_after_pooling(dim, pool_size):
 
 
 # Backward Python compatibility
-def _old_dim_after_pooling(dim, pool_size):
+def _py2_dim_after_pooling(dim, pool_size):
     return np.ceil(dim_after_convolution(dim, pool_size) / float(pool_size)).astype(np.uint16)
 
 if int(sys.version[0]) < 3:
-    dim_after_pooling = _old_dim_after_pooling
+    dim_after_pooling = _py2_dim_after_pooling
 
-
+    
 def configure_cnn(nclasses,
                   image_size,
                   conv_filters,
@@ -146,6 +154,32 @@ class ImageClassifier(object):
             x = np.expand_dims(x, 0)
         return self._model.predict(x).squeeze()
 
+    def label_map(self, X, opencl=True):
+        if opencl:
+            multi_convolve_image = _opencl_multi_convolve_image
+            relu_max_pool_image = _opencl_relu_max_pool_image
+        else:
+            multi_convolve_image = _multi_convolve_image
+            relu_max_pool_image = _relu_max_pool_image
+        sx, sy = self.fcnn_shift
+        data = np.zeros(X.shape, dtype=cnn.FLOAT_DTYPE)
+        data[sx:, sy:, :] = X[:-sx, :-sy:, :]
+        pool_size, dil = self._pool_size, 1
+        for i in range(len(self._layers)):
+            print('Processing %d-th convolution layer' % (i + 1))
+            kernel, bias = self.get_weights(i, fully_convolutional=True)
+            print('Kernel shape: %d, %d, %d, %d' % kernel.shape)
+            data = multi_convolve_image(data, kernel, bias, dil, dil)
+            # Reset pool size and dilation after convolution with first dense layer
+            if i == len(self._conv_filters):
+                pool_size = dil = 1
+            print('Layer=%d, pool size=%d, dilation=%d' % (i, pool_size, dil))
+            if i < (len(self._layers) - 1):  # no max activation in last layer
+                data = relu_max_pool_image(data, pool_size, pool_size, dil, dil)
+            if i < len(self._conv_filters):
+                dil *= 2
+        return softmax(data)
+        
     def evaluate(self):
         if self._model is None:
             raise ValueError('Model needs be trained first')
@@ -192,28 +226,40 @@ class ImageClassifier(object):
 
         return kernel, bias
 
-    def _get_image_size(self):
+    @property
+    def image_size(self):
         return self._image_size
 
-    def _get_nclasses(self):
+    @property
+    def nclasses(self):
         return self._nclasses
-    
-    def _get_conv_filters(self):
+
+    @property
+    def conv_filters(self):
         return self._conv_filters
 
-    def _get_kernel_size(self):
+    @property
+    def kernel_size(self):
         return self._kernel_size
 
-    def _get_dense_units(self):
+    @property
+    def dense_units(self):
         return self._dense_units
 
-    def _get_pool_size(self):
+    @property
+    def pool_size(self):
         return self._pool_size
 
-    def _get_layers(self):
+    @property
+    def layers(self):
         return tuple(['c' for i in range(len(self._conv_filters))] + ['d' for i in range(len(self._dense_units) + 1)])
-        
-    def _get_fcnn_shift(self, step=None):
+
+    @property
+    def final_kernel_size(self):
+        return self.get_weights(len(self._conv_filters), fully_convolutional=True)[0].shape[0]
+
+    @property
+    def fcnn_shift(self, step=None):
         if step is None:
             step = len(self._conv_filters)
         s = (self._kernel_size - 1) // 2 + (self._pool_size - 1) // 2
@@ -222,17 +268,8 @@ class ImageClassifier(object):
         else:
             s *= len(self._conv_filters)
         return np.array(self._image_size) // 2 - s
-    
-    image_size = property(_get_image_size)
-    nclasses = property(_get_nclasses)
-    conv_filters = property(_get_conv_filters)
-    kernel_size = property(_get_kernel_size)
-    dense_units = property(_get_dense_units)
-    pool_size = property(_get_pool_size)
-    fcnn_shift = property(_get_fcnn_shift)
-    layers = property(_get_layers)
 
-    
+
 def load_image_classifier(h5file):
     model = keras.models.load_model(h5file)
     conv_filters = [layer.filters for layer in model.layers if type(layer) == keras.layers.convolutional.Conv2D]
@@ -245,5 +282,3 @@ def load_image_classifier(h5file):
     C = ImageClassifier(image_size, nclasses, conv_filters, kernel_size, pool_size, dense_units)
     C._model = model
     return C
-
-

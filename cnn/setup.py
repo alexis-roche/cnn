@@ -40,7 +40,7 @@ def configuration(parent_package='',top_path=None):
         opts['extra_link_args'] = ['-l%s' % s for s in info.get_libraries()]
     else:
         opencl_link_args = ['-lOpenCL']
-    config.add_extension('_utils', sources=['_utils.pyx', 'utils.c', 'opencl_utils.c'], **opts)
+    config.add_extension('_utils', sources=['_utils.c', 'utils.c', 'opencl_utils.c'], **opts)
 
     # Add OpenCL kernel files
     add_opencl_files(config, 'opencl', ['test1d.cl', 'convolve_image.cl', 'relu_max_pool_image.cl'])

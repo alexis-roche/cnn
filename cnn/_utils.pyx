@@ -119,6 +119,7 @@ np.import_array()
 
 # Global variables
 _SIZEOF_FLOAT = sizeof(FLOAT)
+FLOAT_DTYPE = 'float%s' % (8 * _SIZEOF_FLOAT)
 
 # Functions
 cdef to_array1d(np.ndarray A, array1d* a_ptr):

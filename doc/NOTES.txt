@@ -1,0 +1,340 @@
+Issues: 
+
+* How should we choose the patch size? 
+
+* Odd/even patch size? Should the center match an actual pixel?
+
+* How do we make sure that examples are comprehensive? For instance,
+  in the first running version, I observe that strong reflections on
+  foil are often classified as food, presumably this is a consequence
+  of not having many examples of that in the training dataset. 
+
+* Should we have ambiguous examples?
+
+* Should we balance classes in trainging (class_weight='auto' vs None)
+
+* How to run the model in C/C++?
+
+* Spatial regularization (Markov)
+
+-----------------------------------------------------------------------
+
+Efficiency of the patch-based approach. It seems that the community
+has replaced patch-based CNNs with "fully convolutional nets" (FCN).
+
+One thing that is worthwile noticing about CNNs is that they only
+depend on the input image size IF they have fully connected layers.
+However, the fully convolutional layers can be replaced with
+convolutional layers of appropriate kernel sizes (depending on the
+original input image size). 
+
+This  seems to  be the  idea behind  FCN. There  is a  trivial way  to
+transform a CNN into a FCN, the  advantage being that the FCN can take
+up any  image size.  There seems  to be non-trivial  stuff in  the FCN
+paper, but  let's first draw  some basic conclusions from  the trivial
+part.
+
+Et, donc, plutôt que d'appliquer un CNN indépendamment à toutes les
+patchs d'une image indépendamment, il est beaucoup plus efficace
+d'appliquer le FCN équivalent à l'image entière car les calculs sont
+ainsi partagés à travers les patchs. C'est une remarque d'ordre
+purement calculatoire, mais importante!
+
+Si j'arrive à reverse-engineerer l'application d'un modèle par Keras,
+ce qui ne devrait pas être bien difficile, je peux coder tout ça en C
+indépendamment de toute librairie... et ça devrait être méga-efficace!
+
+-----------------------------------------------------------------------
+Feb 9.
+
+Check padding 'same' or 'valid' in Keras. By default, Keras applies
+'valid', which shrinks the input size. 'same' seems to be padding with
+zeros. If 'valid', don't need to apply coordinate checks when applying
+kernel mask, so may be substantially faster.
+
+What is the concept behind Tensorflow sessions? Why converting a TF
+tensor to a numpy array via the eval method requires to start a
+fucking session, and WHY THE FUCK is the result fucking random?????
+For now, use keras TF backend as a workaround.
+
+OK, so it seems I have a running C implementation of multiple
+convolution, just need to speed it up in the default case of 'valid'
+padding. The ReLU/max pooling is still to be tested, but it's
+difficult to screw up.
+
+The main left difficulty will be to understand how the dense layers
+are implemented and how they can be "convolutionalized"... Basically,
+the convolutional layer ends up with a tensor of shape 4x4x64 in the
+case of our CNN working on 50x50 image patches. So we have this
+elongated 3D block of features fully connected to 64 units in this
+instance, which amounts to 64 filters with kernel sizes (4, 4).
+
+-----------------------------------------------------------------------
+Feb 19.
+
+Retour de vacances à Morillon, et comme souvent après une prise de
+recul, le champ de vision s'élargit.
+
+Ce qu'il faut implémenter, c'est une "convolution dilatée".
+
+Il faut entrainer le CNN 'patch-based' avec padding 'valid' pour
+éviter les effets de bord quand on implémente le fully convolutional
+CNN équivalent. On a alors un effet de shift des coordonnées de bord
+de patchs (+1 à chaque couche convolutionnelle) mais on s'en fout
+peut-être un peu si on s'intéresse aux centres.
+
+ATTENTION: le fully convolutional CNN doit, lui, maintenir les
+dimensions spatiales constantes, donc le padding doit être de type
+'same'... peu importe car les pixels concernés ne sont pas "valides"
+au sens où ils ne sont pas au centre d'un patch pouvant être
+classifié.
+
+-----------------------------------------------------------------------
+Feb 23.
+
+Les premiers tests indiquent que le FCNN fait le job attendu avec un
+temps de calcul environ 10 fois inférieur au code python basique (ne
+partageant pas les calculs entre les patchs).
+
+Il semble y avoir des effets de bord... Cela vient vraisemblablement
+du fait que le zero-padding n'est pas approprié (s'il y a du signal au
+bord de l'image, il va "baver" à l'extérieur par convolution mais cet
+effet sera ignoré par les convolutions ultérieures). Une solution
+simple serait d'étirer l'image de départ en la complétant
+"physiquement" par des bords nuls suffisamment larges. Non, ce n'est
+pas la même chose que faire du zero-padding à la volée (sauf à la
+première convolution).
+
+Ce sont clairement les convolutions qui prennent le plus de temps (par
+rapport au max pooling). Il faut avoir à l'esprit que le coût
+calculatoire d'une convolution dépend de:
+
+- la taille du noyau: (sx, sy)
+- le nombre de canaux en entrée: n0
+- le nombre de canaux en sortie (nombre de filtres): n1
+
+Grosso merdo, le temps de calcul est proportionnel à: sx*sy*n0*n1.
+
+Ici, 
+
+- pour la première convolution, on a: sx=sy=3, n0=3, n1=32.
+
+- pour la convolution correspondant à la première couche "dense", on
+  a: sx=sy=4, n0=64, n1=64.
+
+Le rapport de temps de calcul sera donc de l'ordre de 76! Sur mon PC,
+avec une compilation en O3, la première convolution prend environ 3/4
+de seconde pour une image de taille 640x480, et la dernière prend
+logiquement de l'ordre d'une minute.
+
+
+-----------------------------------------------------------------------
+DOUBLE vs FLOAT 
+
+The code can work in float or double (depending on a typedef in
+run_utils.h).
+
+To probe the difference in encoding, I ran a convolution with kernel
+size (4, 4, 64, 64) on a 640x480 image. The computation time was as
+follows:
+
+Double: 62.765 s
+Float: 46.036 s
+
+So, by using C-type float rather than double, we roughly reduce
+computation time by 27%, in addition to reducing memory load by a
+factor 2.
+
+-----------------------------------------------------------------------
+SHIFT
+
+I observed that the FCN output was shifted by several pixels wrt the
+result using the brute-force implementation of patched-based CNN
+segmentation... why is it so?
+
+This is normal. It can be seen that, for a CNN of the type considered
+and with pool size 2, the top left corner of any patch is shifted by:
+
+sum_{i=0}^{#conv_filters} 2^i = 2^{#conv_filters + 1} - 1
+ 
+For instance, with 3 convolutional layers, the shift is of 2^4 - 1 =
+15 pixels in both directions.
+
+This means that the output corresponding to a patch top left corner
+with coordinates x, y is found at (x+15, y+15) in the image produced
+by the "equivalent" FCNN.
+
+If now (x, y) are the patch center coordinates, the corresponding
+output coordinates are (x-h+15, y-h+15) where h is half the patch
+size. If we trained the CNN on patches of size 50x50, h=25, therefore
+the shift is 15-25=-10, negative. This means that the pixel with true
+coordinates (0, 0) is not found in the FCNN output as it would
+correspond to coordinates (-10, -10).
+
+To correct for that, we just need to translate the input image by 10
+towards the bottom right before applying the FCNN.
+
+If we do that using the same image size (hence truncating the input
+image to the bottom right), we get the correct output up to some
+clutter in the bottom right...  due to the truncation but also the
+fact that the input should be padded with zeros. We can further
+correct for this using a sufficiently large image size but this seems
+too little a problem to deserve headaches.
+
+
+-----------------------------------------------------------------------
+DIMENSION FLOW
+
+Assume kernel size = 3, pool size = 2
+
+Convolutional layer: dim -> dim - 2
+Pooling: dim -> dim / 2
+Shift is sum_{i=0,...,#pool_steps} 2^i = 2^{#pool_steps + 1} - 1 
+
+How does this generalize?
+
+Kernel size. The image FOV is reduced to ensure that the kernel always
+fully overlaps the image (with the 'valid' padding option).
+
+* If the kernel size is odd, the dim is reduced by 2*((size-1)/2) =
+size-1.
+
+* If the kernel size is even, the kernel mask is asymetric, taking
+  hl=(size-1)/2 pixels and hr=size/2 pixels on the right, hence we
+  loose hl+hr = (size-1+size)/2 = (2*size-1)/2 = size-1, again!
+
+--> the dimension reduction due to a convolution is always the kernel
+    size minus one.
+
+Pooling. We will barely deal with pooling sizes other than 2, but
+let's do the excercise.
+
+First, we have the same issue as for the kernel: the mask needs to
+overlap the image completely, so the max filter (or any filter
+associated with pooling) is applied to an image with dimensions
+reduced by (pool_size-1).
+
+Next, a subsampling operation is performed, which approximately
+divides the dim by the pool size. We need to solve:
+
+f * (d-1) < D => d < (D/f) + 1
+f * d >= D => (D/f) <= d
+
+=> d = ceil(D/f)
+
+To sum up:
+
+dim -> dim - pool_size + 1 -> ceil((dim - pool_size + 1) / pool_size)
+= ceil((dim + 1) / pool_size) - 1
+
+So the effect of convolution + pooling is to do:
+
+dim -> ceil((dim + 1 - kernel_size + 1) / pool_size) - 1
+
+= ceil((dim + 2 - kernel_size) / pool_size) - 1
+
+Shift.
+
+A la 1ere convolution, le coin se déplace de (kernel_size-1)/2
+Au 1er pooling, il se déplace de (pool_size-1)/2
+Notons s = (kernel_size-1)/2 + (kernel_size-1)/2
+
+Puis on sous-échantillonne d'un facteur f.
+
+A la 2e convolution, le facteur de dilatation vaut f, c-à-d qu'on vit
+désormais dans un monde où la distance entre deux pixels voisins est
+f. Donc, tout se passe comme avant sauf qu'on multiplie tout par
+f... c'est simple.
+
+Le shift vaudra donc: s + s * f
+
+etc...
+
+En notant n le nombre de couches convolutionnelles (suivies de
+pooling), le shift total est:
+
+s + sf + sf^2 + ...
+= s (f^(n+1) - 1) / (f-1)
+
+Dans notre CNN de base, nous avons s=1, f=2 et n=3.
+
+-----------------------------------------------------------------------
+March 2.
+
+TODO:
+
+-> figure out the resolution to use to achieve best performance/cost
+   tradeoff. For instance, if we work at half the resolution, we can
+   use patches of size 25x25 to train the CNN, and we will essentially
+   divide the computation time by 4.
+
+REFLEXIONS...
+
+Je me pose toujours la question de savoir s'il faut prendre des patchs
+de taille paire ou impaire.
+
+Si c'est paire, le centre du patch ne coincide pas avec un
+pixel. Est-ce que c'est emmerdant? Un peu, si le but est de classifier
+chaque pixel en fonction du patch dont il est le centre. Mais c'est un
+peu une question d'ordre philosophique car on pourrait dire qu'on
+classifie chaque pixel en fonction du patch dont il est le pixel le
+plus proche du centre - par valeurs inférieures ou supérieures, comme
+on veut... Mais, justement, cet arbitraire n'est pas très souhaitable.
+
+Cette question est à rapprocher à celle de l'entrainement utilisant ou
+non des patchs ambigus. 
+
+-----------------------------------------------------------------------
+April 9.
+
+Un autre effet de bords auquel on est confronté du fait de la
+convolution 'valide' est que l'image de probabilité finale est
+entourée d'une bande de pixels de valeur constante sans
+signification. La bande est plus large à droite et en bas parce que la
+troncature affecte préférentiellement les valeurs supérieures dans
+notre implémentation (de façon cohérente avec Keras).
+
+Par exemple, un pooling de 2 ne produit pas de troncature à gauche,
+mais fait perdre une bande d'un pixel à droite et en bas.
+
+Ceci s'ajoute au phénomène de déplacement discuté plus haut, lui aussi
+dû à l'interpolation 'valide'.
+
+Quand on applique un noyau de taille s avec une dilation de 1, on perd:
+* à gauche: (s - 1) // 2
+* à droite: s // 2
+
+Avec un facteur de dilatation d, on perd:
+* à gauche: d * ((s - 1) // 2)
+* à droite: d * (s // 2)
+
+Dans notre réseau favori, on perd:
+* à gauche: 1 (conv), 0 (max pool), 2, 0, 4, 0, 8 (dense layer)
+* à droite: 1, 1, 2, 2, 4, 4, 16
+
+Ces pertes s'ajoutent à chaque itération, de sorte qu'on se fait
+manger 15 pixels à gauche et 30 à droite. Ce sont des pixels pour
+lesquels le FCNN n'est pas cohérent avec le CNN associé à cause d'un
+champ de vue restreint. 
+
+La perte liée aux convolutions (excepté la 1ère couche dense) est de
+la forme:
+
+p_conv = q + 2*q + 4*q + ... = q (1 + 2 + 4 + ... ) = q (2**n - 1)
+
+avec q = (kernel_size-1)//2 à gauche et q=kernel_size//2 à droite, où
+n est le nombre de couches convolutionnelles.
+
+De même, pour les relouds Max/Poules, on perd:
+
+p_remax = q (2**n - 1)
+
+avec q = (pool_size-1)//2 à gauche et q=pool_size//2 à droite.
+
+La formule générale est, en notant ks la kernel size, ps la pool size
+et fs la kernel size de la convolution finale équivalente à la 1ere
+couche dense:
+
+* A gauche: p_left = [(ks-1)//2 + (ps-1)//2] (2**n - 1) + 2**n (fs-1)//2
+* A droite: p_right = [ks//2 + ps//2] (2**n - 1) + 2**n fs//2
+
