@@ -47,12 +47,18 @@ def opencl_relu_max_pool_image(*args):
 
 ###########################################################################
 
-img = vii.load_image('/home/alexis/artisan_data/pizza/item1/con5/pic01.png')
+fimg = '/home/alexis/artisan_data/pizza/item1/con5/pic01.png'
+device = 0
+brute_force = False
+if len(sys.argv) > 1:
+    fimg = sys.argv[1]
+    if len(sys.argv) > 2:
+        device = int(sys.argv[2])
+        if device < 0:
+            device = None
+img = vii.load_image(fimg)
 classif = cnn.load_image_classifier('feb2.h5')  # 'mar6.h5'
 
-device = 0
-if len(sys.argv) > 1:
-    device = int(sys.argv[1])
 
 
 def multi_convolve_image(data, kernel, bias, dil_x, dil_y):
@@ -95,6 +101,3 @@ for i in range(len(classif.conv_filters), len(classif.layers)):
 silver = cnn.softmax(flow)
 
 print('error = %f' % np.max(np.abs(gold - silver))) 
-
-
-

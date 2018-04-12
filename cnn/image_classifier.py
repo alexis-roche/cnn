@@ -24,6 +24,32 @@ def dim_after_pooling(dim, pool_size):
     return np.ceil(dim_after_convolution(dim, pool_size) / pool_size).astype(np.uint16)
 
 
+def _index_range(x, dim, size):
+    hl, hr = size / 2, (size + 1) / 2
+    x0, x1 = x - hl, x + hr
+    a0, a1 = 0, size
+    if x0 < 0:
+        a0 = -x0
+        x0 = 0
+    elif x1 > dim:
+        a1 = dim - x1
+        x1 = dim
+    return a0, a1, x0, x1
+
+    
+def patch(data, x, y, size_x, size_y, dtype=float):
+    a0, a1, x0, x1 = _index_range(x, data.shape[0], size_x)
+    b0, b1, y0, y1 = _index_range(y, data.shape[1], size_y)    
+    patch = np.zeros((size_x, size_y, 3), dtype=dtype)
+    patch[a0:a1, b0:b1] = data[x0:x1, y0:y1]
+    return patch
+
+
+def softmax(x):
+    tmp = np.exp(x)
+    tmp /= np.expand_dims(np.sum(tmp, -1), -1)
+    return tmp
+
 
 # Backward Python compatibility
 def _py2_dim_after_pooling(dim, pool_size):
@@ -32,11 +58,6 @@ def _py2_dim_after_pooling(dim, pool_size):
 if int(sys.version[0]) < 3:
     dim_after_pooling = _py2_dim_after_pooling
 
-    
-def softmax(x):
-    tmp = np.exp(x)
-    tmp /= np.expand_dims(np.sum(tmp, -1), -1)
-    return tmp
 
 
 def configure_cnn(nclasses,
@@ -161,8 +182,27 @@ class ImageClassifier(object):
             x = np.expand_dims(x, 0)
         return self._model.predict(x).squeeze()
 
+
+    def _label_map_brute_force(self, data):
+
+        def myprint(s):
+            sys.stdout.write(s)
+            sys.stdout.flush()
+            
+        out = np.zeros(list(data.shape[0:2]) + [self._nclasses])
+        lines = out.shape[1]
+        for y in range(lines):
+            myprint('%3.2f %% complete.\r' % ((100. * y) / lines))
+            patches = np.array([patch(data, x, y, self._image_size[0], self._image_size[1]) for x in range(out.shape[0])])
+            out[:, y, :] = self.run(patches)
+        return out
+
     
-    def label_map(self, data, device=None, groups=None):
+    def label_map(self, data, device=None, groups=None, brute_force=False):
+
+        if brute_force:
+            return self._label_map_brute_force(data)
+        
         # Shift the input image 
         sx, sy = self.fcnn_shift
         sdata = np.zeros(data.shape, dtype=FLOAT_DTYPE)
