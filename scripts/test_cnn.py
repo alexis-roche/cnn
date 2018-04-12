@@ -1,11 +1,12 @@
 import sys
-import numpy as np
 import time
+import numpy as np
 
 import vii
 import cnn
 
 
+GROUPS = 25, 20, 1
 
 def subsample(x, pool_size):
     # Make sure it works with pool size > 2 !!!!
@@ -49,25 +50,24 @@ def opencl_relu_max_pool_image(*args):
 img = vii.load_image('/home/alexis/artisan_data/pizza/item1/con5/pic01.png')
 classif = cnn.load_image_classifier('feb2.h5')  # 'mar6.h5'
 
-OPENCL = False
-DEVICE = 0
-GROUPS = 25, 20, 1
+device = 0
 if len(sys.argv) > 1:
-    OPENCL = sys.argv[1] == 'opencl'
+    device = int(sys.argv[1])
 
 
 def multi_convolve_image(data, kernel, bias, dil_x, dil_y):
-    if OPENCL:
-        return opencl_multi_convolve_image(data, kernel, bias, dil_x, dil_y, DEVICE, *(GROUPS[0:2]))
-    else:
+    if device < 0:
         return cpu_multi_convolve_image(data, kernel, bias, dil_x, dil_y)
+    else:
+        return opencl_multi_convolve_image(data, kernel, bias, dil_x, dil_y, device, *(GROUPS[0:2]))
 
 
 def relu_max_pool_image(data, size_x, size_y, dil_x, dil_y):
-    if OPENCL:
-        return opencl_relu_max_pool_image(data, size_x, size_y, dil_x, dil_y, DEVICE, *GROUPS)
-    else:
+    if device < 0:
         return cpu_relu_max_pool_image(data, size_x, size_y, dil_x, dil_y)
+    else:
+        return opencl_relu_max_pool_image(data, size_x, size_y, dil_x, dil_y, device, *GROUPS)
+
 
 ###########################################################################
     
@@ -97,23 +97,4 @@ silver = cnn.softmax(flow)
 print('error = %f' % np.max(np.abs(gold - silver))) 
 
 
-############################################################################
-
-print('FCNN test')
-
-data = img.get_data() / 255.
-
-t0 = time.time()
-if OPENCL:
-    pm = classif.label_map(data, device=0, groups=(25,20))
-else:
-    pm = classif.label_map(data)
-print('Time FCNN = %f' % (time.time() - t0))
-    
-silver_mask = pm[..., 1]
-
-err = silver_mask[x + classif.image_size[0] // 2, y + classif.image_size[1] // 2] - gold[1]
-print ('FCNN error = %f' % err)
-
-#gold_mask = np.load('gold_fcnn.npy')
 

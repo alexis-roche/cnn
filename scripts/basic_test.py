@@ -42,7 +42,6 @@ print('Test2 error = %f' % err2)
 
 
 ##################### Test 3
-
 src = np.random.rand(640, 480, nchannels).astype(cnn.FLOAT_DTYPE)
 kernels = np.random.rand(kernel_size, kernel_size, nchannels, nfilters).astype(cnn.FLOAT_DTYPE)
 #biases =  np.ones(nfilters).astype(cnn.FLOAT_DTYPE)
@@ -57,3 +56,8 @@ print('Time GPU = %f' % (time.time() - t0))
 err3 = disc(mres, mres2)
 print('Test3 error = %f' % err3)
 
+##################### Test 4
+x = np.random.rand(10, 11, 12).astype(cnn.FLOAT_DTYPE)
+y = cnn._relu_max_pool_image(x, 2, 2, 1, 1)
+z = cnn._opencl_relu_max_pool_image(x, 2, 2, 1, 1, 0, 10, 10, 1)
+print('Test4 = %s' % np.min(z == y))
