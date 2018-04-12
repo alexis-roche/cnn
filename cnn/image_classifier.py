@@ -24,6 +24,7 @@ def dim_after_pooling(dim, pool_size):
     return np.ceil(dim_after_convolution(dim, pool_size) / pool_size).astype(np.uint16)
 
 
+
 # Backward Python compatibility
 def _py2_dim_after_pooling(dim, pool_size):
     return np.ceil(dim_after_convolution(dim, pool_size) / float(pool_size)).astype(np.uint16)
@@ -32,6 +33,12 @@ if int(sys.version[0]) < 3:
     dim_after_pooling = _py2_dim_after_pooling
 
     
+def softmax(x):
+    tmp = np.exp(x)
+    tmp /= np.expand_dims(np.sum(tmp, -1), -1)
+    return tmp
+
+
 def configure_cnn(nclasses,
                   image_size,
                   conv_filters,
@@ -154,32 +161,55 @@ class ImageClassifier(object):
             x = np.expand_dims(x, 0)
         return self._model.predict(x).squeeze()
 
-    def label_map(self, X, opencl=True):
-        if opencl:
-            multi_convolve_image = _opencl_multi_convolve_image
-            relu_max_pool_image = _opencl_relu_max_pool_image
-        else:
+    
+    def label_map(self, data, device=None, groups=None):
+        # Shift the input image 
+        sx, sy = self.fcnn_shift
+        sdata = np.zeros(data.shape, dtype=FLOAT_DTYPE)
+        sdata[sx:, sy:, :] = data[:-sx, :-sy:, :]
+
+        # Run input data through fully convolutional network
+        pm = self._label_map(sdata, device=device, groups=groups)
+
+        # Set the borders to zero
+        a, b = self.fcnn_borders
+        pm[0:a, :, :] = 0
+        pm[:, 0:a, :] = 0
+        pm[-b:, :, :] = 0
+        pm[:, -b:, :] = 0
+
+        return pm
+
+    def _label_map(self, data, device=None, groups=None):
+        # Select actual convolution and max pooling routines
+        if device is None:
             multi_convolve_image = _multi_convolve_image
             relu_max_pool_image = _relu_max_pool_image
-        sx, sy = self.fcnn_shift
-        data = np.zeros(X.shape, dtype=cnn.FLOAT_DTYPE)
-        data[sx:, sy:, :] = X[:-sx, :-sy:, :]
+            opencl_args_conv, opencl_args_relu = [], []
+        else:
+            multi_convolve_image = _opencl_multi_convolve_image
+            relu_max_pool_image = _opencl_relu_max_pool_image
+            if groups is None:
+                groups = [1, 1, 1]
+            elif len(groups) != 2:
+                raise ValueError('groups need be a sequence of two integers')
+            opencl_args_conv = [device] + list(groups)
+            opencl_args_relu = opencl_args_conv + [1]
+
+        # Run fully convolutional network
         pool_size, dil = self._pool_size, 1
-        for i in range(len(self._layers)):
-            print('Processing %d-th convolution layer' % (i + 1))
+        for i in range(len(self.layers)):
             kernel, bias = self.get_weights(i, fully_convolutional=True)
-            print('Kernel shape: %d, %d, %d, %d' % kernel.shape)
-            data = multi_convolve_image(data, kernel, bias, dil, dil)
+            data = multi_convolve_image(data, kernel, bias, dil, dil, *opencl_args_conv)
             # Reset pool size and dilation after convolution with first dense layer
             if i == len(self._conv_filters):
                 pool_size = dil = 1
-            print('Layer=%d, pool size=%d, dilation=%d' % (i, pool_size, dil))
-            if i < (len(self._layers) - 1):  # no max activation in last layer
-                data = relu_max_pool_image(data, pool_size, pool_size, dil, dil)
+            if i < (len(self.layers) - 1):  # no max activation in last layer
+                data = relu_max_pool_image(data, pool_size, pool_size, dil, dil, *opencl_args_relu)
             if i < len(self._conv_filters):
                 dil *= 2
         return softmax(data)
-        
+    
     def evaluate(self):
         if self._model is None:
             raise ValueError('Model needs be trained first')
@@ -225,7 +255,7 @@ class ImageClassifier(object):
                 kernel = np.reshape(kernel, [1, 1] + list(kernel.shape))
 
         return kernel, bias
-
+    
     @property
     def image_size(self):
         return self._image_size
@@ -255,16 +285,23 @@ class ImageClassifier(object):
         return tuple(['c' for i in range(len(self._conv_filters))] + ['d' for i in range(len(self._dense_units) + 1)])
 
     @property
-    def final_kernel_size(self):
+    def fcnn_kernel_size(self):
         return self.get_weights(len(self._conv_filters), fully_convolutional=True)[0].shape[0]
 
     @property
-    def fcnn_shift(self, step=None):
-        if step is None:
-            step = len(self._conv_filters)
+    def fcnn_borders(self):
+        steps = len(self._conv_filters)
+        formula = lambda ks, fs, ps: (2 ** steps - 1) * (ks // 2 + ps // 2) + (2 ** steps) * (fs // 2)
+        left = formula(self._kernel_size - 1, self._pool_size - 1, self.fcnn_kernel_size - 1)
+        right = formula(self._kernel_size, self._pool_size, self.fcnn_kernel_size)
+        return np.array((left, right))
+
+    @property
+    def fcnn_shift(self):
+        steps = len(self._conv_filters)
         s = (self._kernel_size - 1) // 2 + (self._pool_size - 1) // 2
         if self._pool_size > 1:
-            s *= (self._pool_size ** (step + 1) - 1) // (self._pool_size - 1)
+            s *= (self._pool_size ** (steps + 1) - 1) // (self._pool_size - 1)
         else:
             s *= len(self._conv_filters)
         return np.array(self._image_size) // 2 - s

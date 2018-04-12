@@ -6,11 +6,6 @@ import vii
 import cnn
 
 
-def softmax(x):
-    tmp = np.exp(x)
-    tmp /= np.expand_dims(np.sum(tmp, -1), -1)
-    return tmp
-
 
 def subsample(x, pool_size):
     # Make sure it works with pool size > 2 !!!!
@@ -48,12 +43,6 @@ def opencl_multi_convolve_image(*args):
 def opencl_relu_max_pool_image(*args):
     return cnn._opencl_relu_max_pool_image(*args)
 
-
-###########################################################################
-
-def zobic(steps, kernel_size, pool_size, final_kernel_size):
-    formula = lambda steps, ks, ps, fs: (2 ** steps - 1) * (ks // 2 + ps // 2) + (2 ** steps) * (fs // 2)
-    return formula(steps, kernel_size - 1, pool_size - 1, final_kernel_size - 1), formula(steps, kernel_size, pool_size, final_kernel_size)
 
 ###########################################################################
 
@@ -103,60 +92,28 @@ for i in range(len(classif.conv_filters), len(classif.layers)):
     if i < (len(classif.layers) - 1):
         flow = np.maximum(flow, 0)
 
-silver = softmax(flow)
+silver = cnn.softmax(flow)
 
-print('error = %f' % np.max(np.abs(gold-silver))) 
+print('error = %f' % np.max(np.abs(gold - silver))) 
 
 
 ############################################################################
 
 print('FCNN test')
 
+data = img.get_data() / 255.
 
-data = img.get_data().astype(cnn.FLOAT_DTYPE) / 255
+t0 = time.time()
+if OPENCL:
+    pm = classif.label_map(data, device=0, groups=(25,20))
+else:
+    pm = classif.label_map(data)
+print('Time FCNN = %f' % (time.time() - t0))
+    
+silver_mask = pm[..., 1]
 
-"""
-sx, sy = classif.fcnn_shift
-data = np.zeros(img.get_data().shape, dtype=cnn.FLOAT_DTYPE)
-data[sx:, sy:, :] = img.get_data()[:-sx, :-sy:, :]
-data /= 255
-
-pool_size, dil = classif.pool_size, 1
-for i in range(len(classif.layers)):
-    print('Processing %d-th convolution layer' % (i + 1))
-    kernel, bias = classif.get_weights(i, fully_convolutional=True)
-    print('Kernel shape: %d, %d, %d, %d' % kernel.shape)
-    data = multi_convolve_image(data, kernel, bias, dil, dil)
-    # Reset pool size and dilation after convolution with first dense layer
-    if i == len(classif.conv_filters):
-        pool_size = dil = 1
-    print('Layer=%d, pool size=%d, dilation=%d' % (i, pool_size, dil))
-    if i < (len(classif.layers) - 1):  # no max activation in last layer
-        data = relu_max_pool_image(data, pool_size, pool_size, dil, dil)
-    if i < len(classif.conv_filters):
-        dil *= 2
-
-label_map = softmax(data)
-"""
-
-label_map = classif.label_map(data)
-silver_mask = label_map[..., 1]
-
-###############################
-
-tmp = silver_mask[x + classif.image_size[0] // 2, y + classif.image_size[1] // 2] - gold[1]
-print ('FCNN error = %f' % tmp)
-
-a, b = zobic(len(classif.conv_filters), classif.kernel_size, classif.pool_size, classif.final_kernel_size)
-
-silver_mask[0:a, :] = 0
-silver_mask[:, 0:a] = 0
-silver_mask[-b:, :] = 0
-silver_mask[:, -b:] = 0
-
+err = silver_mask[x + classif.image_size[0] // 2, y + classif.image_size[1] // 2] - gold[1]
+print ('FCNN error = %f' % err)
 
 #gold_mask = np.load('gold_fcnn.npy')
-
-#silver = np.zeros(mask.shape, dtype=cnn.FLOAT_DTYPE)
-#silver[10:, 10:] = mask[:-10, :-10]
 
