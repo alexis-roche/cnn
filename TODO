@@ -1,4 +1,6 @@
-Border effects
+Organize tests
+
+Further speedup: avoid multiple data transfer between host and device.
 
 
 BUGS
@@ -9,6 +11,8 @@ data returns zero at fixed 2d locations.
 
 
 DONE
+
+* Border effects
 
 * Checks in Cython module: array dimension.
 

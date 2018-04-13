@@ -3,7 +3,13 @@ import time
 import numpy as np
 
 import vii
+
 import cnn
+from cnn._utils import (FLOAT_DTYPE,
+                        _multi_convolve_image,
+                        _opencl_multi_convolve_image,
+                        _relu_max_pool_image,
+                        _opencl_relu_max_pool_image)
 
 
 GROUPS = 25, 20, 1
@@ -27,22 +33,22 @@ def probe_time(func):
 
 @probe_time
 def cpu_multi_convolve_image(*args):
-    return cnn._multi_convolve_image(*args)
+    return _multi_convolve_image(*args)
 
 
 @probe_time
 def cpu_relu_max_pool_image(*args):
-    return cnn._relu_max_pool_image(*args)
+    return _relu_max_pool_image(*args)
 
 
 @probe_time
 def opencl_multi_convolve_image(*args):
-    return cnn._opencl_multi_convolve_image(*args)
+    return _opencl_multi_convolve_image(*args)
 
 
 @probe_time
 def opencl_relu_max_pool_image(*args):
-    return cnn._opencl_relu_max_pool_image(*args)
+    return _opencl_relu_max_pool_image(*args)
 
 
 ###########################################################################
@@ -58,7 +64,6 @@ if len(sys.argv) > 1:
             device = None
 img = vii.load_image(fimg)
 classif = cnn.load_image_classifier('feb2.h5')  # 'mar6.h5'
-
 
 
 def multi_convolve_image(data, kernel, bias, dil_x, dil_y):
@@ -82,7 +87,7 @@ print('CNN test')
 x = np.random.randint(img.dims[0] - classif.image_size[0] + 1)
 y = np.random.randint(img.dims[1] - classif.image_size[1] + 1)
 
-data = img.get_data().astype(cnn.FLOAT_DTYPE)[x:(x + classif.image_size[0]), y:(y + classif.image_size[1])] / 255
+data = img.get_data().astype(FLOAT_DTYPE)[x:(x + classif.image_size[0]), y:(y + classif.image_size[1])] / 255
 gold = classif.run(data)
 
 flow = data
