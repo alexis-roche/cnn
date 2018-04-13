@@ -1,9 +1,9 @@
 import sys 
-import glob
+import os
 import gc
 
 import numpy as np
-import keras
+
 
 from ._utils import (FLOAT_DTYPE,
                      _convolve_image,
@@ -72,6 +72,7 @@ def configure_cnn(nclasses,
     """
     Returns a sequential Keras model
     """
+    import keras
     model = keras.models.Sequential()
     
     # Convolutional layers
@@ -148,6 +149,7 @@ class ImageClassifier(object):
               decay=1e-6,
               class_weight=None):
 
+        import keras
         y = keras.utils.to_categorical(y, self._nclasses)
         if prop_test == 0:
             self.x_train, self.y_train = x, y
@@ -348,6 +350,7 @@ class ImageClassifier(object):
 
 
 def load_image_classifier(h5file):
+    import keras
     model = keras.models.load_model(h5file)
     conv_filters = [layer.filters for layer in model.layers if type(layer) == keras.layers.convolutional.Conv2D]
     dense_units = [layer.output_shape[-1] for layer in model.layers if type(layer) == keras.layers.Dense]
