@@ -53,17 +53,20 @@ def opencl_relu_max_pool_image(*args):
 
 ###########################################################################
 
-fimg = '/home/alexis/artisan_data/pizza/item1/con5/pic01.png'
+fimg = 'pizza.png'
+fmod = 'feb2.h5'
 device = 0
 brute_force = False
 if len(sys.argv) > 1:
     fimg = sys.argv[1]
-    if len(sys.argv) > 2:
-        device = int(sys.argv[2])
-        if device < 0:
-            device = None
+        if len(sys.argv) > 2:
+        fmod = sys.argv[2]
+        if len(sys.argv) > 3:
+            device = int(sys.argv[3])
+            if device < 0:
+                device = None
 img = vii.load_image(fimg)
-classif = cnn.load_image_classifier('feb2.h5')  # 'mar6.h5'
+classif = cnn.load_image_classifier(fmod)
 
 
 def multi_convolve_image(data, kernel, bias, dil_x, dil_y):

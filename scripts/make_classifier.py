@@ -18,12 +18,17 @@ from cnn.data_generator import PatchSelector
 
 IMAGE_PATH = '/home/alexis/artisan_data'
 SIZE = 45
-PATCHES_PER_IMAGE = 2
+PATCHES_PER_IMAGE = 1
 RANDOM = True
 EXAMPLE_PATH = '/home/alexis/tmp'
 EXAMPLE_NAME = 'example'
-MODEL_NAME = 'lb2s'
+MODEL_NAME = 'apr16_6'
 CHECK_BUFFER = 10
+
+PROP_TEST = .01
+BATCH_SIZE = 16
+EPOCHS = 10000
+DROPOUT = .0
 
 
 def get_food_list():
@@ -85,7 +90,7 @@ def check_example(fnpz):
     if not n:
         pl.close()
         return
-    n = input('Do you really want to correct label? [0/1]')
+    n = input('Do you really want to correct label? [0/1] ')
     if not n:
         pl.close()
         return
@@ -122,7 +127,7 @@ def normalize(x, y):
 # Main
 ################################################
 
-mode = 0
+mode = 2
 if len(sys.argv) > 1:
     mode = int(sys.argv[1])
 
@@ -137,5 +142,5 @@ elif mode == 2:
     x, y = normalize(*load_examples(EXAMPLE_PATH, EXAMPLE_NAME))
     import cnn
     classif = cnn.ImageClassifier(x.shape[1:3], y.max() + 1)
-    classif.train(x, y, prop_test=.2, batch_size=16, epochs=50, class_weight='auto')
+    classif.train(x, y, prop_test=PROP_TEST, batch_size=BATCH_SIZE, epochs=EPOCHS, class_weight='auto', dropout=DROPOUT)
     classif.save(MODEL_NAME)

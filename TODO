@@ -2,6 +2,21 @@ Organize tests
 
 Further speedup: avoid multiple data transfer between host and device.
 
+Study influence of image pre-processing (intensity normalization...)
+
+Make sure the Keras objective is maximum likelihood - seems quite
+confusing.
+
+How can we make sure that the stochastic gradient descent reached the
+global optimum?
+
+Is the droppout necessary? "Dropout consists in randomly setting a
+fraction rate of input units to 0 at each update during training time,
+which helps prevent overfitting."
+
+Influence of other learning parameters (e.g. epochs)???
+
+
 
 BUGS
 

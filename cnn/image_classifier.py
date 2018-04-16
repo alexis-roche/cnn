@@ -95,7 +95,8 @@ def configure_cnn(nclasses,
         model.add(keras.layers.Activation('relu'))
 
     # Final layer
-    model.add(keras.layers.Dropout(dropout))
+    if dropout > 0:
+        model.add(keras.layers.Dropout(dropout))
     model.add(keras.layers.Dense(nclasses))
     model.add(keras.layers.Activation('softmax'))
 
@@ -129,6 +130,7 @@ class ImageClassifier(object):
                  dense_units=(64,)):
 
         self._model = None
+        self._layer_index = None
         self.x_train = None
         self.y_train = None
         self.x_test = None
@@ -167,6 +169,9 @@ class ImageClassifier(object):
                                     learning_rate,
                                     decay)
 
+        self._layer_index = tuple([i for i in range(len(self._model.layers)) if type(self._model.layers[i]) == keras.layers.Conv2D]\
+                            + [i for i in range(len(self._model.layers)) if type(self._model.layers[i]) == keras.layers.Dense])
+        
         if self.x_test is None:
             validation_data = None
         else:
@@ -275,12 +280,9 @@ class ImageClassifier(object):
         self.y_train = None
         self.y_test = None
         gc.collect()
-
+        
     def get_weights(self, n, dtype=FLOAT_DTYPE, fully_convolutional=False):
-        if n < len(self._conv_filters):
-            i = 3 * n
-        else:
-            i = 3 * n + 1
+        i = self._layer_index[n]
         kernel, bias = self._model.layers[i].get_weights()
         kernel = kernel.astype(dtype)
         bias = bias.astype(dtype)
@@ -289,9 +291,8 @@ class ImageClassifier(object):
         # use as a fully convolutional network
         if fully_convolutional:
             if n == len(self._conv_filters):
-                i = 3 * len(self._conv_filters)
-                flat = self._model.layers[i]
-                dense = self._model.layers[i + 1]
+                flat = self._model.layers[i - 1]
+                dense = self._model.layers[i]
                 kernel = np.reshape(kernel, list(flat.input_shape[1:]) + [dense.output_shape[-1]])
             elif n > len(self._conv_filters):
                 kernel = np.reshape(kernel, [1, 1] + list(kernel.shape))
@@ -352,8 +353,10 @@ class ImageClassifier(object):
 def load_image_classifier(h5file):
     import keras
     model = keras.models.load_model(h5file)
-    conv_filters = [layer.filters for layer in model.layers if type(layer) == keras.layers.convolutional.Conv2D]
-    dense_units = [layer.output_shape[-1] for layer in model.layers if type(layer) == keras.layers.Dense]
+    conv2d_idx = [i for i in range(len(model.layers)) if type(model.layers[i]) == keras.layers.Conv2D]
+    dense_idx = [i for i in range(len(model.layers)) if type(model.layers[i]) == keras.layers.Dense]  
+    conv_filters = [model.layers[i].filters for i in conv2d_idx]
+    dense_units = [model.layers[i].output_shape[-1] for i in dense_idx]
     kernel_size = model.layers[0].kernel_size[0]  # layer 0 has to be a convolution layer
     pool_size = model.layers[2].pool_size[0]  # layer 2 has to be a pooling layer
     nclasses = dense_units[-1]
@@ -361,4 +364,5 @@ def load_image_classifier(h5file):
     image_size = model.input_shape[1:3]
     C = ImageClassifier(image_size, nclasses, conv_filters, kernel_size, pool_size, dense_units)
     C._model = model
+    C._layer_index = tuple(conv2d_idx + dense_idx)
     return C
