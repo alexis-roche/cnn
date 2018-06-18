@@ -20,14 +20,14 @@ IMAGE_PATH = '/home/alexis/artisan_data'
 SIZE = 45
 PATCHES_PER_IMAGE = 1
 RANDOM = True
-EXAMPLE_PATH = '/home/alexis/tmp'
+EXAMPLE_PATH = '/home/alexis/tmp2'
 EXAMPLE_NAME = 'example'
-MODEL_NAME = 'apr16_6'
+MODEL_NAME = 'zob'
 CHECK_BUFFER = 10
 
 PROP_TEST = .01
 BATCH_SIZE = 16
-EPOCHS = 10000
+EPOCHS = 1
 DROPOUT = .0
 
 

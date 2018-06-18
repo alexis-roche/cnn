@@ -338,3 +338,31 @@ couche dense:
 * A gauche: p_left = [(ks-1)//2 + (ps-1)//2] (2**n - 1) + 2**n (fs-1)//2
 * A droite: p_right = [ks//2 + ps//2] (2**n - 1) + 2**n fs//2
 
+------------------------------------------
+
+Apr 27.
+
+Looks like, the more training converged, the more binary the CNN
+output... Meaning that the network is more confident in its
+predictions as training improves. Makes sense, doesn't it?
+
+But could also suggest some kind of overfitting is happening. How can
+we evaluate overfitting?
+
+The answer, my friend, is running the EP. The answer is running the
+EP.
+
+Overfitting has to be reflected by high posterior variances on the
+parameters. Low variances mean near certainty on parameter values. I
+realize that not everyone might agree with that, but it's obvious to
+me... Low variances mean the data at hand is enough for training, so
+it can only mean underfitting. 
+
+But what does EP provide us with? Parameter estimates and
+variances. From there, we can evaluate the uncertainty in network
+responses using some Monte Carlo simulation for a bunch of examples,
+and pick those examples for which the uncertainty is largest. Then,
+generate more of this type of examples and see if we improve things.
+
+
+
