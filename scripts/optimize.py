@@ -15,14 +15,14 @@ import vii
 
 import cnn
 from cnn.data_generator import PatchSelector
-import cnn.optimizer as opt
+from cnn.optimizer import *
 
 
 IMAGE_PATH = '/home/alexis/artisan_data'
 SIZE = 45
 PATCHES_PER_IMAGE = 1
 RANDOM = True
-EXAMPLE_PATH = '/home/alexis/tmp2'
+EXAMPLE_PATH = '/home/alexis/tmp'
 EXAMPLE_NAME = 'example'
 MODEL_NAME = 'zob'
 CHECK_BUFFER = 10
@@ -133,15 +133,9 @@ def normalize(x, y):
 x, y = normalize(*load_examples(EXAMPLE_PATH, EXAMPLE_NAME))
 
 classif = cnn.ImageClassifier(x.shape[1:3], y.max() + 1)
-x_train, y_train, x_test, y_test = cnn.shuffle_and_split(x, y, PROP_TEST)
-classif._configure_training(x_train, y_train, 0, 1e-4, 1e-6, x_test, y_test)
+x_train, y_train, x_test, y_test = cnn.split(x, y, prop_test=PROP_TEST)
+classif._configure_training(x_train, y_train, 0, 1e-4, 1e-6, 'glorot_uniform', 'zeros', x_test, y_test)
 
-jc = opt.Optimizer(classif)
+print classif._model.get_weights()[0].mean()
 
-
-
-"""
-classif = cnn.ImageClassifier(x.shape[1:3], y.max() + 1)
-#classif.train(x, y, prop_test=PROP_TEST, batch_size=BATCH_SIZE, epochs=EPOCHS, class_weight='auto', dropout=DROPOUT)
-
-"""
+opt = RMSPropagation(classif)

@@ -60,6 +60,11 @@ if int(sys.version[0]) < 3:
 
 
 
+"""
+TODO: make kernel initializer configurable 
+
+"""
+    
 def configure_cnn(nclasses,
                   image_size,
                   conv_filters,
@@ -68,22 +73,28 @@ def configure_cnn(nclasses,
                   dense_units,
                   dropout,
                   learning_rate,
-                  decay):
+                  decay,
+                  kernel_initializer,
+                  bias_initializer):
     """
     Returns a sequential Keras model
     """
     import keras
     model = keras.models.Sequential()
-    
+
+    kwargs = {'kernel_initializer': kernel_initializer,
+              'bias_initializer': bias_initializer}
+              
     # Convolutional layers
     # The same kernel size and pool size are used in each layer.
     input_layer = True
     for f in conv_filters:
         if input_layer:
-            kwargs = {'input_shape': list(image_size) + [3]}
+            kwargs2 = {'input_shape': list(image_size) + [3]}
         else:
-            kwargs = {}
-        model.add(keras.layers.Conv2D(f, (kernel_size, kernel_size), **kwargs))
+            kwargs2 = {}
+        kwargs2.update(kwargs)
+        model.add(keras.layers.Conv2D(f, (kernel_size, kernel_size), **kwargs2))
         model.add(keras.layers.Activation('relu'))
         model.add(keras.layers.MaxPooling2D(pool_size=(pool_size, pool_size)))
         input_layer = False
@@ -91,13 +102,13 @@ def configure_cnn(nclasses,
     # Densely connected layers
     model.add(keras.layers.Flatten())
     for n in dense_units:
-        model.add(keras.layers.Dense(n))
+        model.add(keras.layers.Dense(n, **kwargs))
         model.add(keras.layers.Activation('relu'))
 
     # Final layer
     if dropout > 0:
         model.add(keras.layers.Dropout(dropout))
-    model.add(keras.layers.Dense(nclasses))
+    model.add(keras.layers.Dense(nclasses, **kwargs))
     model.add(keras.layers.Activation('softmax'))
 
     opt = keras.optimizers.rmsprop(lr=learning_rate, decay=decay)
@@ -107,12 +118,16 @@ def configure_cnn(nclasses,
     return model
 
 
-def shuffle_and_split(x, y, prop_test):
+def shuffle(x, y):
+    idx = np.random.permutation(x.shape[0])
+    return x[idx], y[idx]
+    
+
+def split(x, y, prop_test=.2):
     """
     Returns a tuple:
     x_train, y_train, x_test, y_test
     """
-    idx = np.random.permutation(x.shape[0])
     size_train = int((1 - prop_test) * x.shape[0])
     x_test = x[size_train:]
     y_test = y[size_train:]
@@ -142,7 +157,9 @@ class ImageClassifier(object):
         self._dense_units = tuple(dense_units)
         self._pool_size = int(pool_size)
         
-    def _configure_training(self, x, y, dropout, learning_rate, decay, x_test, y_test):
+    def _configure_training(self, x, y, dropout, learning_rate, decay,
+                            kernel_initializer, bias_initializer,
+                            x_test, y_test):
         
         import keras
 
@@ -160,7 +177,9 @@ class ImageClassifier(object):
                                     self._dense_units,
                                     dropout,
                                     learning_rate,
-                                    decay)
+                                    decay,
+                                    kernel_initializer,
+                                    bias_initializer)
 
         self._layer_index = tuple([i for i in range(len(self._model.layers)) if type(self._model.layers[i]) == keras.layers.Conv2D]\
                             + [i for i in range(len(self._model.layers)) if type(self._model.layers[i]) == keras.layers.Dense])
@@ -169,13 +188,16 @@ class ImageClassifier(object):
               batch_size=16,
               epochs=50,
               class_weight=None,
+              shuffle=True,
               dropout=0,
               learning_rate=1e-4,
               decay=1e-6,
+              kernel_initializer='glorot_uniform',
+              bias_initializer='zeros',
               x_test=None,
               y_test=None):
 
-        self._configure_training(x, y, dropout, learning_rate, decay, x_test, y_test)
+        self._configure_training(x, y, dropout, learning_rate, decay, kernel_initializer, bias_initializer, x_test, y_test)
         
         if self.x_test is None:
             validation_data = None
@@ -185,6 +207,7 @@ class ImageClassifier(object):
                         batch_size=batch_size,
                         epochs=epochs,
                         class_weight=class_weight,
+                        shuffle=shuffle,
                         validation_data=validation_data)
         
     def run(self, x):
