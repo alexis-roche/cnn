@@ -168,10 +168,10 @@ class ImageClassifier(object):
     def train(self, x, y,
               batch_size=16,
               epochs=50,
-              dropout=.5,
+              class_weight=None,
+              dropout=0,
               learning_rate=1e-4,
               decay=1e-6,
-              class_weight=None,
               x_test=None,
               y_test=None):
 
