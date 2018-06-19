@@ -142,14 +142,7 @@ class ImageClassifier(object):
         self._dense_units = tuple(dense_units)
         self._pool_size = int(pool_size)
         
-    def train(self, x, y,
-              prop_test=.2,
-              batch_size=16,
-              epochs=50,
-              dropout=.5,
-              learning_rate=1e-4,
-              decay=1e-6,
-              class_weight=None):
+    def _configure_training(self, x, y, prop_test, dropout, learning_rate, decay):
 
         import keras
         y = keras.utils.to_categorical(y, self._nclasses)
@@ -171,6 +164,17 @@ class ImageClassifier(object):
 
         self._layer_index = tuple([i for i in range(len(self._model.layers)) if type(self._model.layers[i]) == keras.layers.Conv2D]\
                             + [i for i in range(len(self._model.layers)) if type(self._model.layers[i]) == keras.layers.Dense])
+    
+    def train(self, x, y,
+              prop_test=.2,
+              batch_size=16,
+              epochs=50,
+              dropout=.5,
+              learning_rate=1e-4,
+              decay=1e-6,
+              class_weight=None):
+
+        self._configure_training(x, y, prop_test, dropout, learning_rate, decay)
         
         if self.x_test is None:
             validation_data = None
