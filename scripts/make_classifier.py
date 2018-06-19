@@ -20,14 +20,14 @@ IMAGE_PATH = '/home/alexis/artisan_data'
 SIZE = 45
 PATCHES_PER_IMAGE = 1
 RANDOM = True
-EXAMPLE_PATH = '/home/alexis/tmp2'
+EXAMPLE_PATH = '/home/alexis/tmp'
 EXAMPLE_NAME = 'example'
 MODEL_NAME = 'zob'
 CHECK_BUFFER = 10
 
 PROP_TEST = .01
 BATCH_SIZE = 16
-EPOCHS = 1
+EPOCHS = 20
 DROPOUT = .0
 
 
@@ -142,5 +142,6 @@ elif mode == 2:
     x, y = normalize(*load_examples(EXAMPLE_PATH, EXAMPLE_NAME))
     import cnn
     classif = cnn.ImageClassifier(x.shape[1:3], y.max() + 1)
-    classif.train(x, y, prop_test=PROP_TEST, batch_size=BATCH_SIZE, epochs=EPOCHS, class_weight='auto', dropout=DROPOUT)
+    x_train, y_train, x_test, y_test = cnn.shuffle_and_split(x, y, PROP_TEST)
+    classif.train(x_train, y_train, batch_size=BATCH_SIZE, epochs=EPOCHS, class_weight='auto', dropout=DROPOUT, x_test=x_test, y_test=y_test)
     classif.save(MODEL_NAME)

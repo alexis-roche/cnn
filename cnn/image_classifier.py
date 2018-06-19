@@ -142,15 +142,15 @@ class ImageClassifier(object):
         self._dense_units = tuple(dense_units)
         self._pool_size = int(pool_size)
         
-    def _configure_training(self, x, y, prop_test, dropout, learning_rate, decay):
-
+    def _configure_training(self, x, y, dropout, learning_rate, decay, x_test, y_test):
+        
         import keras
-        y = keras.utils.to_categorical(y, self._nclasses)
-        if prop_test == 0:
-            self.x_train, self.y_train = x, y
-            self.x_test, self.y_test = None, None
-        else:
-            self.x_train, self.y_train, self.x_test, self.y_test = shuffle_and_split(x, y, prop_test=prop_test)
+
+        self.x_train = x
+        self.y_train = keras.utils.to_categorical(y, self._nclasses)
+        if not x_test is None:
+            self.x_test = x_test
+            self.y_test = keras.utils.to_categorical(y_test, self._nclasses)
 
         self._model = configure_cnn(self._nclasses,
                                     self._image_size,
@@ -166,15 +166,16 @@ class ImageClassifier(object):
                             + [i for i in range(len(self._model.layers)) if type(self._model.layers[i]) == keras.layers.Dense])
     
     def train(self, x, y,
-              prop_test=.2,
               batch_size=16,
               epochs=50,
               dropout=.5,
               learning_rate=1e-4,
               decay=1e-6,
-              class_weight=None):
+              class_weight=None,
+              x_test=None,
+              y_test=None):
 
-        self._configure_training(x, y, prop_test, dropout, learning_rate, decay)
+        self._configure_training(x, y, dropout, learning_rate, decay, x_test, y_test)
         
         if self.x_test is None:
             validation_data = None
