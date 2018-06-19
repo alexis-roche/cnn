@@ -114,8 +114,8 @@ def shuffle_and_split(x, y, prop_test):
     """
     idx = np.random.permutation(x.shape[0])
     size_train = int((1 - prop_test) * x.shape[0])
-    x_test = x[size_train + 1:]
-    y_test = y[size_train + 1:]
+    x_test = x[size_train:]
+    y_test = y[size_train:]
     x = x[0:size_train]
     y = y[0:size_train]
     return x, y, x_test, y_test
