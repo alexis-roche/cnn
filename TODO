@@ -1,3 +1,7 @@
+Implement sample weights in optimization
+
+Understand how Keras optimizer stores batch size, shuffle, and other similar options...
+
 Organize tests
 
 Further speedup: avoid multiple data transfer between host and device.

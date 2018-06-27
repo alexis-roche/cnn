@@ -136,6 +136,12 @@ classif = cnn.ImageClassifier(x.shape[1:3], y.max() + 1)
 x_train, y_train, x_test, y_test = cnn.split(x, y, prop_test=PROP_TEST)
 classif._configure_training(x_train, y_train, 0, 1e-4, 1e-6, 'glorot_uniform', 'zeros', x_test, y_test)
 
-print classif._model.get_weights()[0].mean()
+#print classif._model.get_weights()[0].mean()
 
+"""
 opt = RMSPropagation(classif)
+opt.run(10)
+"""
+opt = AverageEP(classif, lr=1)
+
+#opt = Optimizer(classif)
