@@ -32,7 +32,7 @@ class Optimizer(object):
             self._iterations = K.variable(0, dtype='int64', name='iterations')
             self._update_function = K.function(
                 self._model._feed_inputs + self._model._feed_targets + self._model._feed_sample_weights,
-                [self._model.total_loss],
+                [self._model.total_loss] + self._model.metrics_tensors,
                 updates=self.get_updates(),
                 name='update_function')
 
@@ -62,7 +62,7 @@ class Optimizer(object):
             for i in range(batches):
                 x, y = self._update_batch()
                 out = self._update_function([x] + [y] + [np.ones(x.shape[0])])
-                print('Iteration: %d, Epoch: %d, Loss = %f' % (i + 1, e + 1, out[0]))
+                print('Iteration: %d, Epoch: %d, Losses = %s' % (i + 1, e + 1, out))
 
     @property
     def iterations(self):
