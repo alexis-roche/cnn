@@ -1,5 +1,7 @@
 Implement sample weights in optimization
 
+Understand why _standardize_user_data outputs lists...
+
 Understand how Keras optimizer stores batch size, shuffle, and other similar options...
 
 Organize tests

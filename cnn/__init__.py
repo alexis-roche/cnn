@@ -1,3 +1,4 @@
+from .utils import *
 from .image_classifier import *
 
 from numpy.testing import Tester

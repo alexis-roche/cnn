@@ -143,5 +143,6 @@ elif mode == 2:
     import cnn
     classif = cnn.ImageClassifier(x.shape[1:3], y.max() + 1)
     x_train, y_train, x_test, y_test = cnn.split(*cnn.shuffle(x, y), prop_test=PROP_TEST)
-    classif.train(x_train, y_train, batch_size=BATCH_SIZE, epochs=EPOCHS, class_weight='auto', x_test=x_test, y_test=y_test)
+    class_weight = cnn.balanced_class_weight(y)
+    classif.train(x_train, y_train, batch_size=BATCH_SIZE, epochs=EPOCHS, class_weight=class_weight, x_test=x_test, y_test=y_test)
     classif.save(MODEL_NAME)
