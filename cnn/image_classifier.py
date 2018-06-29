@@ -186,7 +186,7 @@ class ImageClassifier(object):
     
     def train(self, x, y,
               batch_size=16,
-              epochs=50,
+              epochs=1,
               class_weight=None,
               shuffle=True,
               dropout=0,

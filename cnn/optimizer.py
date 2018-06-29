@@ -9,7 +9,8 @@ batch_get_value = lambda param, feed_dict, session: [session.run(p, feed_dict=fe
 
 class Optimizer(object):
 
-    def __init__(self, obj, method='steepest', sample_weight=None, class_weight=None, batch_size=32, shuffle=True, lr=1e-4, decay=1e-6, **constants):
+    def __init__(self, obj, method='steepest', sample_weight=None, class_weight=None,
+                 batch_size=16, shuffle=True, lr=1e-4, decay=1e-6, **constants):
         """
         obj is an image classifier object
         """
@@ -21,15 +22,12 @@ class Optimizer(object):
                                                      class_weight=class_weight,
                                                      batch_size=batch_size)
         x, y, w = x[0], y[0], w[0]
-
-        self._x = x
-        self._y = y
-        self._w = w
-
-        self._batch_size = batch_size
-        self._shuffle = shuffle
+        self._x, self._y, self._w = x, y, w
+        
+        self._batch_size = int(batch_size)
+        self._shuffle = bool(shuffle)
         gen = ImageDataGenerator()
-        self._batches = gen.flow(x, y, sample_weight=w, batch_size=batch_size, shuffle=shuffle)
+        self._batches = gen.flow(x, y, sample_weight=w, batch_size=self._batch_size, shuffle=self._shuffle)
 
         self._init_param(**constants)
 
@@ -40,6 +38,7 @@ class Optimizer(object):
             self._lr = K.variable(lr, name='lr')
             self._decay = K.variable(decay, name='decay')
             self._iterations = K.variable(0, dtype='int64', name='iterations')
+            # Note that when calling update_function, the loss is evaluated BEFORE the updates 
             self._update_function = K.function(
                 self._model._feed_inputs + self._model._feed_targets + self._model._feed_sample_weights,
                 [self._model.total_loss] + self._model.metrics_tensors,
@@ -73,18 +72,23 @@ class Optimizer(object):
                            self._model._feed_sample_weights[0]: w}
         return x, y, w
 
+    def _update(self):
+        x, y, w = self._update_batch()
+        return self._update_function([x] + [y] + [w])
+    
     def _num_batches(self):
         return len(self._batches.x) / self._batch_size + 1
-    
+            
     def run(self, epochs=1):
         for e in range(epochs):
             for i in range(self._num_batches()):
-                x, y, w = self._update_batch()
-                out = self._update_function([x] + [y] + [w])
+                out = self._update()
                 print('Iteration: %d, Epoch: %d, Losses = %s' % (i + 1, e + 1, out))
-
+            
     def get_config(self):
-        config = {'lr': K.get_value(self._lr),
+        config = {'batch_size': self._batch_size,
+                  'shuffle': self._shuffle,
+                  'lr': K.get_value(self._lr),
                   'decay': K.get_value(self._decay)}
         config.update(self._constants)
         return config
@@ -96,8 +100,10 @@ class Optimizer(object):
     @property
     def batch(self):
         if len(self._feed_dict) < 2:
-            return None, None
-        return self._feed_dict[self._model._feed_inputs[0]], self._feed_dict[self._model._feed_targets[0]]
+            return None, None, None
+        return (self._feed_dict[self._model._feed_inputs[0]],
+                self._feed_dict[self._model._feed_targets[0]],
+                self._feed_dict[self._model._feed_sample_weights[0]])
 
     @property
     def param(self):
@@ -132,8 +138,11 @@ class Optimizer(object):
         return self._session.run(self._model.total_loss, feed_dict=self._feed_dict)
 
     @property
-    def record(self):
-        return np.array(self._record)
+    def full_loss(self):
+        return self._session.run(self._model.total_loss,
+                                 feed_dict={self._model._feed_inputs[0]: self._x,
+                                            self._model._feed_targets[0]: self._y,
+                                            self._model._feed_sample_weights[0]: self._w})
 
     
 class RMSPropagation(Optimizer):
@@ -159,10 +168,11 @@ class RMSPropagation(Optimizer):
 class AverageEP(Optimizer):
 
     def _init_param(self, **constants):
-        self._constants = {'max_var': 1e2, 'init_var': 1}
+        self._constants = {'max_var': 1e2, 'init_var': .01}
         self._constants.update(constants)
         self._param = self._model._collected_trainable_weights +\
-                      [K.variable(np.full(K.int_shape(w), 1. / self._constants['init_var'], dtype=K.dtype(w))) for w in self._model._collected_trainable_weights]
+                      [K.variable(np.full(K.int_shape(w), 1. / self._constants['init_var'], dtype=K.dtype(w)))\
+                       for w in self._model._collected_trainable_weights]
     
     def _update_param(self):
         n = len(self._model._collected_trainable_weights)
@@ -176,4 +186,3 @@ class AverageEP(Optimizer):
             new_prec.append(new_p)
             new_loc.append(new_x)
         return new_loc + new_prec
-

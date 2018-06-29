@@ -1,8 +1,10 @@
-Implement sample weights in optimization
-
 Understand why _standardize_user_data outputs lists...
 
-Understand how Keras optimizer stores batch size, shuffle, and other similar options...
+Check computation of hessian diagonal.
+
+Influence of batch size, learning rate and other learning parameters
+(e.g. epochs)??? --> Measure "success rate" as a function of batch
+size for several optimization methods...
 
 Organize tests
 
@@ -20,9 +22,6 @@ Is the droppout necessary? "Dropout consists in randomly setting a
 fraction rate of input units to 0 at each update during training time,
 which helps prevent overfitting."
 
-Influence of other learning parameters (e.g. epochs)???
-
-
 
 BUGS
 
@@ -32,6 +31,8 @@ data returns zero at fixed 2d locations.
 
 
 DONE
+
+* Implement sample weights in optimization
 
 * Border effects
 

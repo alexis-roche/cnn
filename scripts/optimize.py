@@ -1,8 +1,5 @@
 """
-python make_classifier 0 --> generate examples
-python make_classifier 1 --> check examples
-python make_classifier 2 --> train classifier
-
+python optimize <learning_rate> <batch_size> <init_var> <max_var> <epochs>
 """
 import sys
 import os
@@ -18,63 +15,11 @@ from cnn.data_generator import PatchSelector
 from cnn.optimizer import *
 
 
-IMAGE_PATH = '/home/alexis/artisan_data'
 SIZE = 45
 PATCHES_PER_IMAGE = 1
 RANDOM = True
 EXAMPLE_PATH = '/home/alexis/tmp'
 EXAMPLE_NAME = 'example'
-MODEL_NAME = 'zob'
-CHECK_BUFFER = 10
-
-PROP_TEST = .01
-BATCH_SIZE = 16
-EPOCHS = 1
-DROPOUT = .0
-
-
-def get_food_list():
-    return [os.path.split(p)[1] for p in glob.glob(os.path.join(IMAGE_PATH, '*'))]
-
-
-def random_image():
-    # pick a random image
-    food_list = get_food_list()
-    food = np.random.randint(len(food_list))
-    item = 1 + np.random.randint(10)
-    con = 1 + np.random.randint(8)
-    pic = 1 + np.random.randint(8)
-    return os.path.join(IMAGE_PATH, food_list[food], 'item%d' % item, 'con%d' % con, 'pic0%d.png' % pic)
-
-
-def save_example(ps, food, path, name):
-    if ps.label in (0, 2):
-        print('Missing label, not saving the patch')
-        return
-    elif ps.label == 1:
-        label = 0
-    elif ps.label == 3:
-        label = 1 + food
-    files = glob.glob(os.path.join(path, '%s*' % name))
-    fnpz = os.path.join(path, '%s%d.npz' % (name, len(files) + 1))
-    print('Saving example with label %d in: %s' % (label, fnpz))
-    np.savez(fnpz, patch=ps.data, label=label, food=food)
-
-
-def generate_examples(image_path, size, patches_per_image, random, example_path, npz_name):
-    food_list = get_food_list()
-    stop = False
-    while not stop:
-        fimg = random_image()
-        food = food_list.index(fimg.replace(os.path.normpath(image_path), '').split(os.path.sep)[1])
-        for i in range(patches_per_image):
-            ps = PatchSelector(fimg, size)
-            ps.run(random=random)
-            ps.close()
-            if ps.label == 2:
-                stop = True
-                break
-            save_example(ps, food, example_path, npz_name)
 
 
 def load_example(fnpz):
@@ -125,19 +70,81 @@ def normalize(x, y):
     return x / 255, y > 0
     
 
+def run_optimizer(opt, epochs=1):
+    for e in range(epochs):
+        out = []
+        for i in range(opt._num_batches()):
+            out.append(opt._update())
+            print('Iteration: %d, Epoch = %d, Losses = %s' % (i + 1, e + 1, out[-1]))
+    return np.array(out)
+
+
+def init_classifier(x, y, prop_test):
+    classif = cnn.ImageClassifier(x.shape[1:3], y.max() + 1)
+    x_train, y_train, x_test, y_test = cnn.split(x, y, prop_test=prop_test)
+    classif._configure_training(x_train, y_train, 0, 1e-4, 1e-6, 'glorot_uniform', 'zeros', x_test, y_test)
+    return classif
+    
+
+
 ################################################
 # Main
 ################################################
 
-
 x, y = normalize(*load_examples(EXAMPLE_PATH, EXAMPLE_NAME))
-
-classif = cnn.ImageClassifier(x.shape[1:3], y.max() + 1)
-x_train, y_train, x_test, y_test = cnn.split(x, y, prop_test=PROP_TEST)
-classif._configure_training(x_train, y_train, 0, 1e-4, 1e-6, 'glorot_uniform', 'zeros', x_test, y_test)
-
 class_weight = cnn.balanced_class_weight(y)
+prop_test = .1
 
-opt = AverageEP(classif, lr=1, class_weight=class_weight)
+"""
+Parameters of Average EP:
+* batch_size
+* lr
+* init_var
+* max_var
+* class_weight
+"""
+lr = 1
+batch_size = 32
+init_var = 1
+max_var = 100
+epochs = 2
+
+if len(sys.argv) > 1:
+    lr = float(sys.argv[1])
+    if len(sys.argv) > 2:
+        batch_size = int(sys.argv[2])
+        if len(sys.argv) > 3:
+            init_var = float(sys.argv[3])
+            if len(sys.argv) > 4:
+                max_var = float(sys.argv[4])
+                if len(sys.argv) > 5:
+                    epochs = int(sys.argv[5])
 
 
+classif = init_classifier(x, y, prop_test)
+opt = AverageEP(classif,
+                lr=lr,
+                batch_size=batch_size,
+                init_var=init_var,
+                max_var=max_var,
+                class_weight=class_weight)
+loss_vals = run_optimizer(opt, epochs=epochs)
+
+"""
+Phantom code
+"""
+npy_file = 'patricia.npy'
+
+if os.path.exists(npy_file):
+    rec = np.load(npy_file).item()
+else:
+    rec = {}
+
+tmp = np.mean(loss_vals)
+key = (lr, batch_size, init_var, max_var)
+if rec.has_key(key):
+    rec[key].append(tmp)
+else:
+    rec[key] = [tmp]
+
+np.save(npy_file, rec)
