@@ -364,5 +364,283 @@ responses using some Monte Carlo simulation for a bunch of examples,
 and pick those examples for which the uncertainty is largest. Then,
 generate more of this type of examples and see if we improve things.
 
+-------------------------------
+
+July 9.
+
+Reading notes from pyimagesearch
+
+https://www.pyimagesearch.com/2017/09/11/object-detection-with-deep-learning-and-opencv/
+https://www.pyimagesearch.com/2017/09/18/real-time-object-detection-with-deep-learning-and-opencv/
+
+Depthwise convolution? Purely spatial, channel-specific convolution,
+resulting in one feature map per channel. Instead of the standard conv
++ max pool building block, we may use depthwise conv + max pool
+followed by "1x1 convolution" + max pool. Advantage: for the same
+number of scalar feature maps (same number of "filters"), we save a
+lot of parameters. This trick is used for resource constrained
+devices, hence the name "MobileNet". Drawback: sacrifice accuracy...
+
+I need to understand the different types of object detection
+approaches using deep learning. Object detection differs from image
+classification in that we want to recognize any object present in an
+image and locate it somehow (e.g., using a bounding box). R-CNN, Fast
+R-CNN, Faster R-CNN, SSD...
+
+Nice summary on object detection using CNN at:
+https://towardsdatascience.com/deep-learning-for-object-detection-a-comprehensive-review-73930816d8d9
+
+"Most successful approaches to object detection are currently
+extensions of image classification models" (Joyce Xu)
+
+Old approach: R-CNN (Region-based CNN). Scan input image for possible
+objects using a pre-processing method called "selective search", next
+run a CNN on top of each region proposal (resizing image patches to a
+standard size). Easy. As a cool add-on, use a linear regressor to
+tighten the bounding box from the CNN features. R-CNN very intuitive
+but very slow.
+
+Selective search essentially relies on segmentation (looks like a good
+old k-means clustering) to find "interesting" blobs... typically
+resulting in about 2000 region proposals for an image. But at least we
+won't run the CNN for each and every window location and scale.
+
+Fast R-CNN. Girschick, 2015. Keep the selective search but apply a CNN
+to the ENTIRE image to produce a feature map, from which a
+"fixed-length feature vector" is extracted for each proposal region
+(before the fully connected layer as far as I understand). So there is
+an "RoI pooling layer" that acts as standard max pooling but can work
+with any input shape (always producing the same output shape). To turn
+a pre-trained CNN into a R-CNN, we replace the last max pooling layer
+with a "compatible" RoI pooling layer.
+
+In summary, Fast R-CNN takes as input a set of candidate regions in
+addition to the input image, and outputs a probability mass over (K+1)
+classes (including the "no object" class) for each candidate RoI (plus
+additional bbox regressor parameters, but let's forget about that for
+now). The main advantage over R-CNN is that computations are shared
+across overlapping candidate RoIs.
+
+Fast R-CNN still uses a selective search to find candidate RoIs, which
+is slow, hence the motivation for a Faster R-CNN. Ren et al, 2015. In
+short, Faster R-CNN = RPN + Fast R-CNN. RPN is some kind of CNN that
+substitutes the selective search. So, what is a RPN?
+
+RPN = Region proposal network. We have an initial CNN of which we
+consider the last layer. We move a 3x3 sliding window across the
+output of the last convolution layer and maps it to a lower dimension
+vector (e.g., 256-d), which is used to predict whether various
+pre-defined "anchor boxes" centered at the sliding window location
+contain an object or not (it's really a binary decision: object vs
+non-object as the goal is only to output candidate regions). In
+practice, they use 9 anchor boxes corresponding to three different
+aspect ratios (1:1, 2:1, 1:2) and three different scales.
+
+At this point, we note that all these methods (R-CNN, Fast R-CNN,
+Faster R-CNN) work in a two-step fashion: first select candidate
+regions (using either selective search or RPN), second classify
+them. The Single Shot Detector (SSD) method by Liu et al, 2016,
+collapse both tasks into one, hence the term "single shot".
+
+"The SSD approach is based on a feed-forward convolutional network
+that produces a fixed-size collection of bounding boxes and scores for
+the presence of object class instances in those boxes, followed by a
+non-maximum suppression step to produce the final detections."
+
+SSD expands on a "base network" suitable for image classification
+"(truncated before any classification layers)". Convolutional feature
+layers are added to the end of the truncated base network, which
+decrease in size, producing multi-scale feature maps for detection.
+Each such feature map is convolved by small 3x3 kernels to evaluate 3
+default bounding boxes, producing a score for each category and 4
+shape offset parameters. This bit is similar to Faster R-CNN.
+
+At each location, for each box out of k, we compute c class scores and
+the 4 offsets relative to the original default box shape, yielding
+(c+4)k outputs per location in a m×n feature map.
+
+At training, all the default boxes that have a significant overlap
+with the ground truth (as measured by the Jacard index, or
+"Intersection over Union") are considered as
+"positives". Specifically, each ground truth box is matched with the
+default box with largest IoU, and with all other default boxes with an
+IoU > 0.5. The training loss is a combination of a "confidence" loss
+(on the predicted class) and localization loss. 
+
+------
+
+Deep metric learning.
+
+Again from this nice block, Adrian Rosebrock:
+
+https://www.pyimagesearch.com/2018/06/18/face-recognition-with-opencv-python-and-deep-learning/
+
+Common deep learning methods are classification methods. They take
+some type of data as input and output a label. Deep metric learning is
+concerned with methods that output a real-valued feature vector
+instead.
+
+Adrian mentions a deep metric learning approach for face recognition,
+one that takes a face image patch as input and outputs a 128-d
+vector. The idea behing the training of such a system is to use
+triplets as data items - in this case, a triplet consists of two image
+patches of the same guy and another patch from someone else. Each
+triplet should result in tweaking the network weights so that the
+vector outputs corresponding to the same guy are closer to each other
+and farther from the output corresponding to the other guy.
+
+Deep metric learning extracts a meaningful representation of a face
+image, in this case 128-d, which can be fed into a standard
+classification technique, e.g., a k-NN classifier for actual face
+recognition.
+
+A general remark is that a standard feed-forward network for
+classification also extracts real-valued feature vectors before
+performing a classification task in the last layer. Can this feature
+extraction be considered as a case of "deep metric learning"? Or, in
+other words, are these features useful to other tasks than the
+classification at hand?  This is kind of the question underlying
+transfer learning.
+
+One advantage of metric learning is that it seems to be a more direct
+approach: try to represent a complex object by a lower-dimensional
+"signature" in such a way that classification is made easy.
+
+On the other hand, transfer learning relies on much smaller training
+datasets, making it much more affordable in practice.
+
+Another approach is to design and train a network to decide whether
+two input images represent the same person or not. This is not metric
+learning per se since the network output is a binary variable (as
+opposed to a dense representation) but the network similarly learns
+a representation that needs to be person-specific. 
+
+
+-----------
+
+One thing that comes to my mind is that SSD looks like a brute-force
+approach to solve the object recognition problem.
+
+What about a multi-scale version of FCNN? Whatever it means... I need
+to think into this.
+
+------------
+
+July 24/25.
+
+What is "softmax cross entropy with logits" (tensorflow expression)?
+
+Let us recall that the cross-entropy between two distributions p and q
+is defined by:
+
+H(p, q) = - sum_z p(z) log q(z) = - E_p[log q(Z)]
+
+Now consider the log-likelihood:
+
+L = sum_i log q(xi, yi) = sum_i [log q(yi|xi) + log q(xi)]
+
+where xi is i-th example input and yi the corresponding output and
+q(x, y) is the joint distribution implemented by the network. In
+practice, the marginal q(x) is not modeled so it can be anything we
+want but we simply don't care about this term.
+
+L is fundamentally the same thing as the cross-entropy:
+
+L = -n H(p, q)
+
+where p(z) represents the empirical distribution of z=(x,y) in the
+training dataset and q is the model distribution. 
+
+If we drop the marginal term q(x), we see that L is just a negated and
+normalized version of the CONDITIONAL cross-entropy, say:
+
+L = -n H_q(Y|X)
+
+where the conditional cross-entropy reads:
+
+H_q(Y|X) = - sum_x,y p(x,y) log q(y|x)
+
+In the case p=q, the conditional cross-entropy is simply the
+well-known conditional entropy.
+
+In conclusion, when using anything called cross-entropy as a training
+score, one simply aims to maximize likelihood.
+
+Note that the cross-entropy decomposes as the sum of the entropy and
+the Kullback-Leibler divergence:
+
+H(p, q) = H(p) + D(p||q)
+
+This is also true in the conditional case.
+
+In practice, `p` is only an empirical estimate of the `true` joint
+input x output distribution, but let us assume that the training
+dataset is so big that the approximation is accurate.
+
+H(p) would vanish (in any task where the output takes on discrete
+values, such as classification) if there exists a way to complete the
+task with absolute certainty, i.e. if the label is a deterministic
+function of the input data. For instance, if we tackle a vision task
+that can be accomplished faultlessly by the human eye, we can assume
+that H(p)=0. In this case, the MINIMUM cross-entropy simply reflects
+the lack of modeling power of the network, which is a purely EXTRINSIC
+source of uncertainty.
+
+More generally, if the task cannot be made 100% reliable by any
+device, then cross-entropy reflects a combination of intrinsic and
+extrinsic sources of uncertainty. The entropy can be thought of as
+some sort of baseline uncertainty measure (you can't get lower than
+that unless you measure the label).
+
+From a pragmatic viewpoint, it does not matter where the uncertainty
+comes from. The minimum cross-entropy tells us "how unreliable" our
+predictive model is - and, don't forget, it's only an empirical
+estimate.
+
+The entropy H(p) is a lower bound on the cross-entropy achieved by the
+model. It might not be easy to estimate in practice with a dense input
+variable, even using big data. However, as already pointed out, we
+might assume that H(p) is zero or close to it.
+
+What about the cross-entropy of a random classifier? A random
+classifier is one for which q(y|x)=q(y) is independent from x. It is
+then obvious that the conditional cross-entropy boils down to the
+marginal cross-entropy:
+
+H(p, q) = - sum_y p(y) log q(y) >= H(p)
+
+Hence, the "best" random classifier is the one that matches the
+marginal distribution of classes. If that distribution is uniform
+(which should be roughly the case if examples are balanced using
+appropriate weights), then the entropy is log(K), where K is the
+number of classes. In classification, this limit is about 0.69 (nats).
+
+Seems that TensorFlow and Keras use natural or base-2 log for entropy
+computation, meaning that they return entropy values in nats as
+opposed to bits.
+
+What does it mean? It means that I expect my binary classifier to
+achieve a cross-entropy somehwere between 0 and 0.69 nats at
+training. Larger than 0.69 is possible but totally useless as it would
+mean that the classifier is worse than a trivial classifier, namely
+the "best" random classifier.
+
+Obviously, the closer to zero, the better. How close to zero we need
+to get to be confident on our classifier is a tricky question, but
+this simple reasoning on cross-entropy gives a rule of thumb to make
+sense of training logs.
+
+We shall keep in mind that cross-entropy is estimated on
+mini-batches. However, if values are fairly consistent across
+mini-batches, they should give a reasonable guess of the actual
+cross-entropy.
+
+Now, a more tricky question: can we have a perfect classification rate
+with a large cross-entropy? In theory, this is possible... yes... But
+if the model is trained to maximize the model likelihood, one should
+not be concerned about the classification rate. The fundamental goal
+is to approximate the `true' conditional distribution, that is, try
+and capture the intrinsic uncertainty on predictions as much as
+possible.
 
 
