@@ -643,4 +643,158 @@ is to approximate the `true' conditional distribution, that is, try
 and capture the intrinsic uncertainty on predictions as much as
 possible.
 
+---------------------------------
 
+July 31.
+
+Assume we have an algorithm that, given two input images representing
+a single human being, outputs the probability that these images
+represent the same person.
+
+Assume now we run this algorithm for a bunch of image pairs (im, im1),
+(im, im2), ... (im, imN), where im is a single test image and im1, im2,
+... is a set of known person images.
+
+We get a sequence of probability values p1, p2, ..., pN.
+
+How should we use these values so as to decide whether the person
+represented on `im` has a match in the pre-defined image set?
+
+One way I can think about is... the generalized composite likelihood
+idea! That is: we consider each algorithm run as an expert's
+opinion. The events are atomic and possibly disjoint: `P==P_j`, where
+P is the person on im and P_j is the j-th in the register. There might
+be multiple images of the same person in the register, so let's
+consider the set of distinct persons {1, ..., M} and the person index
+vector `y` corresponding to the image index set {1, ..., N}, which
+defines a mapping. Given a person index j, y^{-1}(j) denotes all
+images representing that person, and let ni denote # y^{-1}(j).
+
+The externally Bayesian opinion pooling rule yields (assuming equal
+weights for all experts in the same pool):
+
+p(P==Pj) \propto \prod_{i\in y^{-1}(j)} [pi/(1-pi)]^[1/ni]
+
+In this story, the random variable is P. Each expert confronts the
+hypothesis that P is a certain person Pj with the null hypothesis that
+P is an unknown person. Given that each expert only knows one person,
+his job boils down to testing whether P=Pj or not.
+
+--------------------------
+
+Aug 14
+
+The difference between cross-entropy and accuracy...
+
+While training the ReID network, I notice that at some point the
+accuracy slightly decreases over iterations. How can this be
+explained?
+
+It could be because the training algorithm is stochastic as opposed to
+greedy, so does not guarantee better performance on each iteration,
+only in the long run.
+
+It could also be because the test dataset is also random in our ReID
+setup (because we don't generate all possible pairs for obvious
+computation time reasons).
+
+Finally, it could also be because the training objective, cross-entropy, is
+different from accuracy, hence we could be facing a situation where
+both cross-entropy and accuracy decrease. Is that really possible and
+what does it mean in practical terms?
+
+To summarize, the decrease in accuracy can occur because of either 1)
+stochastic behavior of the training, or 2) stochastic behavior of the
+testing, or 3) discrepancy between cross-entropy and accuracy.
+
+Let us focus on 3.
+
+Minimizing cross-entropy loosely means that the model is trained to
+output large probabilities on the correct classes. Maximizing accuracy
+means that the model is trained to output a probabilities above .5 on
+the correct classes (in the binary case).
+
+Therefore, with accuracy as the objective, we don't really care about
+the class probabilities. Whether the model is "confident" or not about
+its prediction is not relevant as long as the prediction is correct.
+
+Consider a bad classification case for which, at some point in traing,
+the network assigns a probability p close to zero to the true
+class. This single example will considerably inflate cross-entropy as
+it contributes -log(p), which is a very large number. The same example
+has a strikingly more limited impact on accuracy as it just penalizes
+it by the same amount as any other bad classification case.
+
+Here we get the fundamental insight into the difference between
+accuracy and cross-entropy: cross-entropy forces the network to be
+"humble" in the sense that it cannot be very confident whent it's
+wrong. This may come at the price of lower accuracy because training
+won't be so focused on "bordeline" cases for which the network gets
+the prediction wrong but with low confidence. The good thing is that
+the probability output by the network reflects the confidence in
+classification, so borderline cases could be detected by even
+probabilities, while no such property is guaranteed when maximizing
+accuracy.
+
+In brief, the key difference between accuracy and cross-entropy is
+that accuracy penalizes all classification errors in the same way
+while cross-entropy penalizes classification errors depending on the
+confidence level (errors made with high confidence are considered much
+worse than errors made with low confidence).
+
+---------------
+
+Sep 6
+
+Quelques réflexions sur l'apprentissage...
+
+L'évolution du taux d'apprentissage est critique pour la convergence
+de l'algorithme d'optimisation. Une décroissance trop rapide conduira
+au "syndrôme de l'escargot", c-à-d une convergence très lente. Une
+décroissance trop lente entrainera l'effet inverse, à savoir des
+fluctuations intempestives autour de l'optimum: le "syndrôme de la
+grenouille". Dans les deux cas, la convergence sera lente.
+
+Le taux d'apprentissage joue un rôle analogue à la température dans le
+recuit simulé. Son évolution est déterminée par quelques paramètres,
+typiquement un taux d'apprentissage initial et un paramètre de
+"decay", dont le choix semble relever de l'empirisime le plus
+total...
+
+L'optimum dont on parle est celui du coût moyenné sur la totalité de
+l'ensemble d'apprentissage, avec éventuellement des poids différents
+selon les classes. Son calcul à paramètres du réseau contants revient
+à moyenner les coûts asssociés à des mini-batches aléatoires sur un
+grand nombre de mini-batches (c'est l'idée du bootstrap).
+
+La possibilité de pondérer les classes m'inspire une réflexion: on
+modifie ainsi la distribution empirique marginale des classes de
+manière à la remplacer par un "a priori" uniforme! C'est bien
+évidemment ce qu'il faut faire si on veut que le classifieur soit
+aussi performant pour toutes les classes. Dans le cas contraire, les
+classes rares auraient peu de poids dans l'apprentissage et pourraient
+donner lieu à des inférences très mauvaises, bien que se produisant
+rarement par essence.
+
+N'est-ce pas là l'essence-même de la conception bayésienne de la
+probabilité par opposition à sa conception fréquentiste? Substituer au
+monde réel un monde des possibles défini "a priori". On repense à la
+phrase de de Finetti: "la probabilité n'existe pas".
+
+Pourquoi, tant qu'on y est, ne pas remettre en cause la distribution
+générative sur le même principe? C'est une question fondamentale. Cela
+irait à l'encontre du principe de vraisemblance.
+
+Cette parenthèse refermée, revenons à nos moutons. Il semble exister
+un programme de recuit optimal en terme de vitesse de
+convergence. Mais comment comparer deux programmes distincts?
+
+Une idée naturelle est de regarder l'évolution du coût (c-à-d
+l'entropie croisée) au fil des itérations. Celle-ci étant, en
+pratique, calculée sur des mini-batches, on n'a qu'une estimée bruitée
+de l'entropie globale. Si les paramètres à optimiser n'évoluaient pas,
+l'entropie oscillerait autour d'une valeur fixe. En calculant une
+moyenne fenêtrée, on pourrait réduire ces oscillations.
+
+Mais les fluctuations des paramètres à optimiser contribuent elles
+aussi à faire varier l'entropie. 

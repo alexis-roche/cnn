@@ -16,13 +16,6 @@ from ._utils import (FLOAT_DTYPE,
                      _opencl_relu_max_pool_image)
 
 
-def dim_after_convolution(dim, kernel_size):
-    return np.array(dim).astype(np.uint16) - kernel_size + 1
-
-
-def dim_after_pooling(dim, pool_size):
-    return np.ceil(dim_after_convolution(dim, pool_size) / pool_size).astype(np.uint16)
-
 
 def _index_range(x, dim, size):
     hl, hr = size / 2, (size + 1) / 2
@@ -49,14 +42,6 @@ def softmax(x):
     tmp = np.exp(x)
     tmp /= np.expand_dims(np.sum(tmp, -1), -1)
     return tmp
-
-
-# Backward Python compatibility
-def _py2_dim_after_pooling(dim, pool_size):
-    return np.ceil(dim_after_convolution(dim, pool_size) / float(pool_size)).astype(np.uint16)
-
-if int(sys.version[0]) < 3:
-    dim_after_pooling = _py2_dim_after_pooling
 
 
 
