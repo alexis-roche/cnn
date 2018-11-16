@@ -1,9 +1,8 @@
-#!/usr/bin/env python
-
 from __future__ import absolute_import
 
 import numpy as np
 
+from ..design import *
 from ..image_classifier import *
 
 from nose.tools import assert_true, assert_false, assert_raises

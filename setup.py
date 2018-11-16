@@ -31,7 +31,7 @@ def add_opencl_files(config, subdir, files):
 def configuration(parent_package='',top_path=None):
     # Create package configuration
     config = Configuration('cnn', parent_package, top_path)
-    config.add_subpackage('tests')
+    config.add_data_dir('tests')
     
     # Add Cython module extension
     config.add_include_dirs(config.name.replace('.', os.sep))

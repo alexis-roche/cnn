@@ -2,12 +2,12 @@ import sys
 import numpy as np
 
 
-def _dim_after_convolution(dim, kernel_size):
+def dim_after_convolution(dim, kernel_size):
     return np.array(dim).astype(np.uint16) - kernel_size + 1
 
 
-def _dim_after_pooling(dim, pool_size):
-    return np.ceil(_dim_after_convolution(dim, pool_size) / pool_size).astype(np.uint16)
+def dim_after_pooling(dim, pool_size):
+    return np.ceil(dim_after_convolution(dim, pool_size) / pool_size).astype(np.uint16)
 
 
 # Backward Python compatibility
@@ -15,11 +15,11 @@ def _py2_dim_after_pooling(dim, pool_size):
     return np.ceil(dim_after_convolution(dim, pool_size) / float(pool_size)).astype(np.uint16)
 
 if int(sys.version[0]) < 3:
-    _dim_after_pooling = _py2_dim_after_pooling
+    dim_after_pooling = _py2_dim_after_pooling
 
     
 def conv_layer_output_dim(dim, kernel_size, pool_size):
-    return tuple(_dim_after_pooling(_dim_after_convolution(dim, kernel_size), pool_size))
+    return tuple(dim_after_pooling(dim_after_convolution(dim, kernel_size), pool_size))
 
 
 def conv_layer_params(filters, kernel_size):
