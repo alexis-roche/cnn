@@ -59,7 +59,7 @@ device = 0
 brute_force = False
 if len(sys.argv) > 1:
     fimg = sys.argv[1]
-        if len(sys.argv) > 2:
+    if len(sys.argv) > 2:
         fmod = sys.argv[2]
         if len(sys.argv) > 3:
             device = int(sys.argv[3])

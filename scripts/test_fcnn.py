@@ -11,6 +11,7 @@ import sys
 import cnn
 
 
+SAVE_IMAGES = True
 GROUPS = 25, 20
 
 fimg = 'pizza.png'
@@ -43,8 +44,8 @@ silver = pm[..., 1]
 
 
 ### Test 1 ###
-x = img.dims[0] / 2
-y = img.dims[1] / 2
+x = img.dims[0] // 2
+y = img.dims[1] // 2
 patch = img.get_data().astype(cnn.FLOAT_DTYPE)[x:(x + classif.image_size[0]), y:(y + classif.image_size[1])] / 255
 gold_xy = classif.run(patch)[1]
 err = silver[x + classif.image_size[0] // 2, y + classif.image_size[1] // 2] - gold_xy
@@ -63,3 +64,8 @@ if brute_force:
     print('Error2 = %f' % np.max(diff))
     print('Speedup factor using FCNN = %f' % (dt_b / dt))
 
+### Save mask image
+if SAVE_IMAGES:
+    vii.save_image(vii.Image(255 * silver), 'silver.png')
+    if brute_force:
+        vii.save_image(vii.Image(255 * gold), 'gold.png')
